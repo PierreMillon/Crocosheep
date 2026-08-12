@@ -173,7 +173,18 @@
         <span class="bubble-time">${timeAgo(m.ts)}</span>`;
       wrap.appendChild(line);
     });
+    scrollChatToBottom();
+  }
+
+  function scrollChatToBottom() {
+    const wrap = document.getElementById("chat-bubbles");
+    // Deux passes : une tout de suite, une après le prochain repaint —
+    // sur iOS Safari la hauteur réelle n'est pas toujours à jour au
+    // moment même où le DOM change (barres qui montrent/cachent, etc.)
     wrap.scrollTop = wrap.scrollHeight;
+    requestAnimationFrame(() => {
+      wrap.scrollTop = wrap.scrollHeight;
+    });
   }
 
   function renderSenderRow() {
