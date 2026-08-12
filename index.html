@@ -1,4 +1,69 @@
-Crocosheep
-🎁 👤
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0">
+<title>Crocosheep</title>
+<meta name="description" content="Envoie des animaux, pas des mots.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
 
+  <!-- ===== ÉCRAN CONTACTS ===== -->
+  <section id="screen-contacts" class="screen" data-screen="contacts">
+    <header class="app-header">
+      <h1 class="app-title"><span class="app-title-mouton" aria-hidden="true"></span>Crocosheep</h1>
+      <button id="open-profile" class="icon-btn" aria-label="Voir mon profil">👤</button>
+    </header>
 
+    <div class="contacts-list" id="contacts-list"></div>
+
+    <p class="contacts-hint">Chaque animal veut dire ce que vous en avez décidé.</p>
+  </section>
+
+  <!-- ===== ÉCRAN DISCUSSION ===== -->
+  <section id="screen-chat" class="screen screen-hidden" data-screen="chat">
+    <header class="chat-header">
+      <button id="back-to-contacts" class="icon-btn" aria-label="Retour aux contacts">←</button>
+      <div class="chat-header-id">
+        <span class="contact-avatar" id="chat-avatar">?</span>
+        <span class="contact-code" id="chat-code">—</span>
+      </div>
+      <span class="chat-header-spacer" aria-hidden="true"></span>
+    </header>
+
+    <div class="chat-bubbles" id="chat-bubbles"></div>
+
+    <div class="sender-dock">
+      <div class="sender-row" id="sender-row">
+        <!-- boutons animaux générés en JS -->
+      </div>
+      <p class="sender-progress" id="sender-progress"></p>
+    </div>
+  </section>
+
+  <!-- ===== ÉCRAN PROFIL ===== -->
+  <section id="screen-profile" class="screen screen-hidden" data-screen="profile">
+    <header class="app-header">
+      <button id="back-to-contacts-from-profile" class="icon-btn" aria-label="Retour">←</button>
+      <h1 class="app-title app-title-small">Mon profil</h1>
+      <span class="chat-header-spacer" aria-hidden="true"></span>
+    </header>
+
+    <div class="profile-card">
+      <span class="contact-avatar contact-avatar-big" id="profile-avatar">?</span>
+      <p class="profile-id" id="profile-id">—</p>
+      <p class="profile-since" id="profile-since"></p>
+    </div>
+
+    <h2 class="section-title">Vitrine</h2>
+    <div class="badge-grid" id="badge-grid"></div>
+
+    <p class="profile-footnote">Visible par tes contacts. Rien d'autre n'est public.</p>
+  </section>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="script.js"></script>
+</body>
+</html>
