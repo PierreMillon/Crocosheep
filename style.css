@@ -17,7 +17,22 @@
   color-scheme: light;
 }
 
-* { box-sizing: border-box; }
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent; /* enlève le halo gris au tap sur iOS Safari */
+}
+
+button {
+  touch-action: manipulation; /* pas de délai/zoom au double-tap sur les boutons */
+  -webkit-user-select: none;
+  user-select: none;
+  outline: none;
+}
+
+button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
 
 html, body {
   margin: 0;
@@ -28,6 +43,7 @@ html, body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   overflow: hidden;
+  touch-action: manipulation; /* filet de sécu en plus du viewport : bloque aussi le double-tap-zoom */
 }
 
 body {
