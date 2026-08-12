@@ -40,6 +40,33 @@
   }
 
   /* ---------------------------------------------------------------
+   * Synchro Firebase (Firestore) — optionnelle.
+   * -----------------------------------------------------------------
+   * Tant que firebase-config.js n'a pas été renseigné avec un vrai
+   * projet, l'appli reste en mode démo 100% local (aucune erreur,
+   * juste pas d'échange réel entre deux appareils). Une fois configuré,
+   * chaque paire de codes a son propre fil de messages, protégé par
+   * une authentification anonyme (gratuite, sans carte bancaire).
+   * ------------------------------------------------------------- */
+  const FIREBASE_READY = !!(window.FIREBASE_CONFIG && window.FIREBASE_CONFIG.apiKey !== "REMPLACE_MOI");
+  let db = null;
+  let authReady = Promise.resolve(null);
+
+  if (FIREBASE_READY) {
+    firebase.initializeApp(window.FIREBASE_CONFIG);
+    db = firebase.firestore();
+    authReady = firebase.auth().signInAnonymously()
+      .then(() => true)
+      .catch((e) => { console.error("Auth Firebase échouée", e); return false; });
+  } else {
+    console.warn("Crocosheep : Firebase non configuré — mode démo local uniquement, pas de synchro entre appareils.");
+  }
+
+  function pairId(codeA, codeB) {
+    return [codeA, codeB].sort().join("__");
+  }
+
+  /* ---------------------------------------------------------------
    * État — tout en local pour cette maquette (pas de backend).
    * Le seuil de déblocage du crocodile est tiré au hasard à chaque
    * fois dans une petite plage, pour illustrer le principe de ratio
@@ -90,9 +117,42 @@
   }
 
   let state = loadState();
+  saveState(); // fige le pseudo dès la première visite : sans ça, un partage de lien
+               // avant toute action se ferait perdre au prochain rechargement.
 
   function saveState() {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) { /* tant pis pour cette session */ }
+  }
+
+  const CONTACT_COLORS = ["#5c8a53", "#b98fd6", "#d9a441", "#4f7a58", "#c1573f", "#8a8f99"];
+  function colorForCode(code) {
+    let hash = 0;
+    for (let i = 0; i < code.length; i++) hash = (hash * 31 + code.charCodeAt(i)) >>> 0;
+    return CONTACT_COLORS[hash % CONTACT_COLORS.length];
+  }
+
+  /* ---------------------------------------------------------------
+   * Ajout d'un contact par lien partagé (?add=CODE)
+   * ------------------------------------------------------------- */
+  function addContactByCode(code) {
+    if (!code || code === state.pseudo) return null;
+    let c = state.contacts.find((x) => x.code === code);
+    if (c) return c;
+    c = { id: code, code, color: colorForCode(code), history: [] };
+    state.contacts.push(c);
+    saveState();
+    return c;
+  }
+
+  function handleIncomingLink() {
+    const params = new URLSearchParams(location.search);
+    const code = params.get("add");
+    if (!code) return;
+    const added = addContactByCode(code);
+    // On nettoie l'URL pour ne pas se retrouver à ré-ajouter en boucle
+    // au moindre partage/rafraîchissement.
+    history.replaceState(null, "", location.pathname);
+    if (added) showToast(`${code} ajouté à tes contacts`);
   }
 
   /* ---------------------------------------------------------------
@@ -110,6 +170,14 @@
   }
 
   let activeContactId = null;
+  let unsubscribeChat = null;
+
+  function stopChatSubscription() {
+    if (unsubscribeChat) {
+      unsubscribeChat();
+      unsubscribeChat = null;
+    }
+  }
 
   /* ---------------------------------------------------------------
    * Écran contacts
@@ -121,6 +189,33 @@
     const hours = Math.round(mins / 60);
     if (hours < 24) return `il y a ${hours} h`;
     return `il y a ${Math.round(hours / 24)} j`;
+  }
+
+  // Rafraîchit l'aperçu (dernier animal + heure) de chaque contact
+  // avec un simple get() ponctuel — pas un listener permanent — pour
+  // rester très en dessous du quota gratuit même laissé ouvert des
+  // heures.
+  async function refreshContactPreviews() {
+    renderContacts();
+    if (!FIREBASE_READY) return;
+    const ok = await authReady;
+    if (!ok) return;
+    await Promise.all(state.contacts.map(async (c) => {
+      try {
+        const snap = await db.collection("pairs").doc(pairId(state.pseudo, c.code))
+          .collection("messages").orderBy("ts", "desc").limit(1).get();
+        if (snap.empty) return;
+        const m = snap.docs[0].data();
+        if (!m.ts) return; // écriture pas encore confirmée par le serveur
+        const last = { dir: m.from === state.pseudo ? "out" : "in", animal: m.animal, ts: m.ts.toMillis() };
+        const cached = c.history[c.history.length - 1];
+        if (!cached || cached.ts < last.ts) c.history.push(last);
+      } catch (e) {
+        console.warn("Aperçu indisponible pour", c.code, e);
+      }
+    }));
+    saveState();
+    renderContacts();
   }
 
   function renderContacts() {
@@ -147,14 +242,39 @@
    * Écran discussion
    * ------------------------------------------------------------- */
   function openChat(contactId) {
+    stopChatSubscription();
     activeContactId = contactId;
     const c = state.contacts.find((x) => x.id === contactId);
     document.getElementById("chat-avatar").textContent = c.code.slice(0, 1);
     document.getElementById("chat-avatar").style.background = c.color;
     document.getElementById("chat-code").textContent = c.code;
-    renderChatBubbles();
+    renderChatBubbles(); // affichage immédiat depuis le cache local, pas d'écran vide en attendant le réseau
     renderSenderRow();
     showScreen("chat");
+    subscribeToThread(c);
+  }
+
+  function subscribeToThread(contact) {
+    if (!FIREBASE_READY) return;
+    authReady.then((ok) => {
+      // L'utilisateur a pu changer d'écran pendant l'authentification
+      if (!ok || activeContactId !== contact.id) return;
+      unsubscribeChat = db.collection("pairs").doc(pairId(state.pseudo, contact.code))
+        .collection("messages").orderBy("ts", "asc")
+        .onSnapshot((snap) => {
+          contact.history = snap.docs
+            .filter((d) => d.data().ts) // ignore les écritures locales pas encore confirmées, pour éviter les doublons
+            .map((d) => {
+              const m = d.data();
+              return { dir: m.from === state.pseudo ? "out" : "in", animal: m.animal, ts: m.ts.toMillis() };
+            });
+          saveState();
+          if (activeContactId === contact.id) renderChatBubbles();
+        }, (err) => {
+          console.error("Synchro Crocosheep interrompue", err);
+          showToast("Connexion perdue — les messages restent en attente");
+        });
+    });
   }
 
   function renderChatBubbles() {
@@ -246,15 +366,35 @@
     }
 
     state.sentTotals[type] += 1;
+    if (type === "mouton") checkCrocodileUnlock();
+    saveState();
+    renderSenderRow();
 
     const c = state.contacts.find((x) => x.id === activeContactId);
-    c.history.push({ dir: "out", animal: type, ts: Date.now() });
 
-    if (type === "mouton") checkCrocodileUnlock();
-
-    saveState();
-    renderChatBubbles();
-    renderSenderRow();
+    if (FIREBASE_READY) {
+      authReady.then((ok) => {
+        if (!ok) throw new Error("auth indisponible");
+        return db.collection("pairs").doc(pairId(state.pseudo, c.code))
+          .collection("messages").add({
+            from: state.pseudo,
+            animal: type,
+            ts: firebase.firestore.FieldValue.serverTimestamp(),
+          });
+        // La bulle s'affiche via l'écouteur onSnapshot de subscribeToThread
+        // dès que Firestore confirme l'écriture — quasi instantané.
+      }).catch((e) => {
+        console.error("Envoi impossible", e);
+        showToast("Envoi hors-ligne — pas de connexion");
+        c.history.push({ dir: "out", animal: type, ts: Date.now() });
+        saveState();
+        if (activeContactId === c.id) renderChatBubbles();
+      });
+    } else {
+      c.history.push({ dir: "out", animal: type, ts: Date.now() });
+      saveState();
+      renderChatBubbles();
+    }
   }
 
   function checkCrocodileUnlock() {
@@ -280,6 +420,9 @@
     document.getElementById("profile-id").textContent = state.pseudo;
     document.getElementById("profile-since").textContent =
       `Sur Crocosheep depuis ${new Date(state.since).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })}`;
+    document.getElementById("sync-status").textContent = FIREBASE_READY
+      ? "🟢 Synchro activée entre appareils"
+      : "⚪ Mode démo local — pas encore de synchro entre appareils";
 
     const grid = document.getElementById("badge-grid");
     grid.innerHTML = "";
@@ -313,22 +456,40 @@
    * Câblage des écrans
    * ------------------------------------------------------------- */
   document.getElementById("open-profile").addEventListener("click", () => {
+    stopChatSubscription();
     renderProfile();
     showScreen("profile");
   });
   document.getElementById("back-to-contacts").addEventListener("click", () => {
-    renderContacts();
+    stopChatSubscription();
+    refreshContactPreviews();
     showScreen("contacts");
   });
   document.getElementById("back-to-contacts-from-profile").addEventListener("click", () => {
-    renderContacts();
+    refreshContactPreviews();
     showScreen("contacts");
+  });
+
+  document.getElementById("share-link").addEventListener("click", async () => {
+    const url = `${location.origin}${location.pathname}?add=${encodeURIComponent(state.pseudo)}`;
+    if (navigator.share) {
+      try { await navigator.share({ title: "Crocosheep", text: "Ajoute-moi sur Crocosheep 🐑", url }); }
+      catch (e) { /* partage annulé par l'utilisateur — rien à faire */ }
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      showToast("Lien copié !");
+    } catch (e) {
+      showToast(url);
+    }
   });
 
   document.querySelectorAll(".app-title-mouton").forEach((el) => {
     el.style.backgroundImage = `url("data:image/svg+xml,${encodeURIComponent(SHEEP_SVG)}")`;
   });
 
-  renderContacts();
+  handleIncomingLink();
+  refreshContactPreviews();
   showScreen("contacts");
 })();

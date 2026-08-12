@@ -358,6 +358,30 @@ body {
   margin: 0;
 }
 
+.share-btn {
+  display: block;
+  margin: 0 20px 6px;
+  padding: 13px 18px;
+  border: none;
+  border-radius: 999px;
+  background: var(--ink);
+  color: #fff;
+  font-size: 14.5px;
+  font-weight: 700;
+  text-align: center;
+  cursor: pointer;
+  width: calc(100% - 40px);
+}
+
+.share-btn:active { transform: scale(0.98); }
+
+.sync-status {
+  text-align: center;
+  color: var(--muted);
+  font-size: 11.5px;
+  margin: 0 20px 18px;
+}
+
 .section-title {
   font-size: 14px;
   font-weight: 700;
