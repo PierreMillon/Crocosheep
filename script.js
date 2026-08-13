@@ -80,6 +80,16 @@
 
   if (FIREBASE_READY) {
     firebase.initializeApp(window.FIREBASE_CONFIG);
+    // App Check (anti-bot) : optionnel, actif seulement si une vraie clé
+    // reCAPTCHA v3 a été renseignée dans firebase-config.js. Voir le
+    // commentaire dans ce fichier pour comment l'obtenir.
+    if (window.FIREBASE_CONFIG.appCheckSiteKey && window.FIREBASE_CONFIG.appCheckSiteKey !== "REMPLACE_MOI" && firebase.appCheck) {
+      try {
+        firebase.appCheck().activate(window.FIREBASE_CONFIG.appCheckSiteKey, true);
+      } catch (e) {
+        console.warn("App Check indisponible", e);
+      }
+    }
     db = firebase.firestore();
     authReady = firebase.auth().signInAnonymously()
       .then(() => true)
@@ -93,6 +103,57 @@
   }
 
   /* ---------------------------------------------------------------
+   * Horloge serveur — pour que les paramètres cachés basés sur l'heure
+   * (voir randomThreshold) ne se laissent pas manipuler en changeant
+   * l'heure du téléphone. Un seul aller-retour au démarrage suffit :
+   * on mesure l'écart entre l'horloge de Firestore et celle de
+   * l'appareil, et on l'applique ensuite à tous les calculs de now().
+   * Sans Firebase (mode démo), il n'y a rien à protéger : on retombe
+   * simplement sur l'horloge locale.
+   * ------------------------------------------------------------- */
+  let serverTimeOffset = 0;
+  function now() { return Date.now() + serverTimeOffset; }
+
+  if (FIREBASE_READY) {
+    authReady.then((ok) => {
+      if (!ok) return;
+      const ref = db.collection("_clock").doc(state.pseudo);
+      ref.set({ t: firebase.firestore.FieldValue.serverTimestamp() })
+        .then(() => ref.get({ source: "server" }))
+        .then((snap) => {
+          const t = snap.data() && snap.data().t;
+          if (t) serverTimeOffset = t.toMillis() - Date.now();
+        })
+        .catch((e) => console.warn("Calibration horloge serveur impossible, repli sur l'horloge locale", e));
+    });
+  }
+
+  /* ---------------------------------------------------------------
+   * Anti-clic-robot — un script qui spamme le mouton clique soit plus
+   * vite qu'un doigt humain ne peut répéter, soit à des intervalles
+   * quasi identiques à la milliseconde près (un humain a toujours du
+   * "jitter" naturel). On ignore silencieusement les deux cas — pas
+   * de message d'erreur qui renseignerait qui triche.
+   * ------------------------------------------------------------- */
+  let lastClickAt = 0;
+  let recentIntervals = [];
+  function looksAutomated(ts) {
+    if (lastClickAt) {
+      const interval = ts - lastClickAt;
+      if (interval < 80) { lastClickAt = ts; return true; }
+      recentIntervals.push(interval);
+      if (recentIntervals.length > 8) recentIntervals.shift();
+      if (recentIntervals.length >= 5) {
+        const avg = recentIntervals.reduce((a, b) => a + b, 0) / recentIntervals.length;
+        const variance = recentIntervals.reduce((a, b) => a + (b - avg) ** 2, 0) / recentIntervals.length;
+        if (Math.sqrt(variance) < 4) { lastClickAt = ts; return true; }
+      }
+    }
+    lastClickAt = ts;
+    return false;
+  }
+
+  /* ---------------------------------------------------------------
    * État — tout en local pour cette maquette (pas de backend).
    * Le seuil de déblocage du crocodile est tiré au hasard à chaque
    * fois dans une petite plage, pour illustrer le principe de ratio
@@ -103,10 +164,10 @@
   // (heure, parité de la seconde) — invisibles pour qui utilise l'appli,
   // dans l'esprit "chasse au trésor" plutôt qu'un simple tirage uniforme.
   function randomThreshold() {
-    const now = new Date();
+    const d = new Date(now()); // horloge calée sur le serveur, pas sur l'appareil — voir plus haut
     let t = 9 + Math.floor(Math.random() * 3); // base : 9, 10 ou 11
-    if (now.getHours() >= 7 && now.getHours() < 12) t += 1; // matinée (7h-12h)
-    if (now.getSeconds() % 2 === 1) t -= 1; // seconde impaire au moment du tirage
+    if (d.getHours() >= 7 && d.getHours() < 12) t += 1; // matinée (7h-12h)
+    if (d.getSeconds() % 2 === 1) t -= 1; // seconde impaire au moment du tirage
     return Math.max(1, t);
   }
 
@@ -454,6 +515,8 @@
    * Envoi d'un animal
    * ------------------------------------------------------------- */
   function sendAnimal(type) {
+    if (looksAutomated(Date.now())) return; // clic ignoré sans un mot — voir looksAutomated()
+
     if (type !== "mouton") {
       if ((state.stock[type] || 0) <= 0) {
         showToast(`Plus de ${ANIMALS[type].label.toLowerCase()} en stock`);

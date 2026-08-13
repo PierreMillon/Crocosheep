@@ -17,4 +17,13 @@ window.FIREBASE_CONFIG = {
   storageBucket: "crocosheep-test.firebasestorage.app",
   messagingSenderId: "558991811832",
   appId: "1:558991811832:web:89fe9e40a88ecee41b070d",
+
+  // Anti-bot (Firebase App Check). Optionnel, désactivé tant que ça reste
+  // "REMPLACE_MOI". Pour l'activer :
+  // 1. Console Firebase → ⚙️ Paramètres du projet → App Check
+  // 2. Onglet "Apps" → ton app Web → "S'inscrire" → fournisseur reCAPTCHA v3
+  // 3. Ça t'envoie créer une clé sur https://www.google.com/recaptcha/admin
+  //    (type reCAPTCHA v3, domaine : pierremillon.github.io)
+  // 4. Colle ici la "clé de site" (site key, PAS la clé secrète)
+  appCheckSiteKey: "REMPLACE_MOI",
 };
