@@ -509,7 +509,10 @@
             if (!cached || cached.ts < last.ts) {
               c.history.push(last);
               saveState();
-              if (last.dir === "in") trackReceived(last.animal);
+              if (last.dir === "in") {
+                trackReceived(last.animal);
+                notify("Crocosheep", `${c.code} t'a envoyé un animal 🐑`);
+              }
               renderContacts();
             }
           }, (err) => console.warn("Aperçu temps réel indisponible pour", c.code, err));
@@ -862,12 +865,23 @@
       if (!ok) return;
       unsubscribeMyGroups = db.collection("groups").where("members", "array-contains", state.pseudo)
         .onSnapshot((snap) => {
+          const prevPolls = {}; // pour repérer un nouveau sondage lancé sur un groupe qu'on suit déjà
+          myGroups.forEach((g) => { prevPolls[g.id] = g.currentPollId; });
           myGroups = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+          myGroups.forEach((g) => {
+            if (g.creator !== state.pseudo && g.currentPollId && prevPolls[g.id] !== undefined && prevPolls[g.id] !== g.currentPollId) {
+              notify("Crocosheep", `Sondage lancé dans ${g.label || g.id} 🔔`);
+            }
+          });
           renderContacts();
         }, (e) => console.warn("Liste des groupes indisponible", e));
       unsubscribeMyInvites = db.collection("groups").where("pendingInvites", "array-contains", state.pseudo)
         .onSnapshot((snap) => {
+          const prevIds = myInvites.map((g) => g.id);
           myInvites = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+          myInvites.forEach((g) => {
+            if (!prevIds.includes(g.id)) notify("Crocosheep", `Invitation à rejoindre ${g.label || g.id} 👥`);
+          });
           renderContacts();
         }, (e) => console.warn("Invitations indisponibles", e));
     });
@@ -1118,6 +1132,9 @@
    * Historique des versions
    * ------------------------------------------------------------- */
   const CHANGELOG = [
+    { version: "v10", date: "13 août 2026", changes: [
+      "Notifications (mouton reçu, invitation de groupe, sondage lancé) tant que l'appli est ouverte quelque part — vraie notif app fermée demanderait un compte Firebase payant, pas activé",
+    ]},
     { version: "v9", date: "13 août 2026", changes: [
       "Deux nouveaux paramètres cachés : écart de fuseau horaire avec le contact, nombre premier de moutons envoyés dans la vie",
     ]},
@@ -1200,6 +1217,23 @@
   }
 
   /* ---------------------------------------------------------------
+   * Notifications — version "onglet ouvert" via l'API Notification du
+   * navigateur : fonctionne tant que le site est ouvert quelque part
+   * (même en arrière-plan, pas au premier plan), mais pas app fermée.
+   * Une vraie notif push app-fermée demanderait Firebase Cloud
+   * Messaging + Service Worker + Cloud Function, ce qui impose de
+   * passer le projet Firebase en facturation payante (plan Blaze) —
+   * décision financière qu'on laisse à Pierre, pas prise ici.
+   * ------------------------------------------------------------- */
+  function notify(title, body) {
+    if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
+    if (!document.hidden) return; // on est déjà en train de regarder l'appli, pas la peine
+    try {
+      new Notification(title, { body, icon: "apple-touch-icon.png" });
+    } catch (e) { /* certains navigateurs mobiles n'aiment pas new Notification() direct, tant pis */ }
+  }
+
+  /* ---------------------------------------------------------------
    * Câblage des écrans
    * ------------------------------------------------------------- */
   document.getElementById("open-profile").addEventListener("click", () => {
@@ -1274,6 +1308,24 @@
       // Dernier filet, imparable sur tous les navigateurs : une boîte système
       // avec le lien pré-sélectionné, à copier à la main.
       prompt("Copie ce lien :", url);
+    }
+  });
+
+  function updateNotifyButton() {
+    const btn = document.getElementById("enable-notifications");
+    if (typeof Notification === "undefined") { btn.style.display = "none"; return; }
+    if (Notification.permission === "granted") btn.textContent = "🔔 Notifications activées";
+    else if (Notification.permission === "denied") btn.textContent = "🔕 Notifications bloquées (à réactiver dans les réglages du navigateur)";
+    else btn.textContent = "🔔 Activer les notifications";
+  }
+  updateNotifyButton();
+
+  document.getElementById("enable-notifications").addEventListener("click", () => {
+    if (typeof Notification === "undefined") return;
+    if (Notification.permission === "default") {
+      Notification.requestPermission().then(() => updateNotifyButton());
+    } else {
+      showToast("Change ça dans les réglages de notifications du navigateur");
     }
   });
 
