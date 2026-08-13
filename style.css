@@ -363,7 +363,7 @@ body {
   display: flex;
   flex-direction: column;
   width: 100%;
-  min-height: 116px;
+  min-height: 190px;
 }
 
 .send-band {
@@ -385,15 +385,15 @@ body {
 .send-band:last-child { padding-bottom: env(safe-area-inset-bottom); }
 
 .send-band-icon {
-  width: 48px;
-  height: 42px;
+  width: 72px;
+  height: 64px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .send-band-icon svg { width: 100%; height: 100%; }
-.send-band-icon .emoji { font-size: 32px; line-height: 1; }
+.send-band-icon .emoji { font-size: 46px; line-height: 1; }
 
 .stock-pill {
   background: var(--ink);
