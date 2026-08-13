@@ -203,14 +203,6 @@ body {
 .contact-preview-icon svg { width: 100%; height: 100%; }
 .contact-preview-icon .emoji { font-size: 18px; }
 
-.contacts-hint {
-  text-align: center;
-  color: var(--muted);
-  font-size: 12.5px;
-  padding: 0 24px 24px;
-  margin: 0;
-}
-
 .create-group-btn {
   display: block;
   margin: 6px 12px 0;

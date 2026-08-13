@@ -472,7 +472,10 @@
     const stack = document.getElementById("send-stack");
     stack.innerHTML = "";
 
-    const active = TIER_ORDER.filter((t) => t === "mouton" || state.unlocked[t]);
+    // Une fois le stock d'un animal retombé à zéro, son bouton disparaît
+    // aussi (pas de bouton mort qui ne fait qu'afficher une erreur) —
+    // il revient tout seul dès qu'un nouveau stock est regagné.
+    const active = TIER_ORDER.filter((t) => t === "mouton" || (state.unlocked[t] && state.stock[t] > 0));
     active.forEach((type) => {
       const band = document.createElement("button");
       band.className = "send-band";
@@ -494,10 +497,11 @@
 
     if (type !== "mouton") {
       if ((state.stock[type] || 0) <= 0) {
-        showToast(`Plus de ${ANIMALS[type].label.toLowerCase()} en stock`);
+        showToast(`Plus de stock ${ANIMALS[type].label.toLowerCase()}`);
         return;
       }
       state.stock[type] -= 1;
+      if (state.stock[type] === 0) showToast(`Plus de stock ${ANIMALS[type].label.toLowerCase()}`);
     }
 
     state.sentTotals[type] += 1;
