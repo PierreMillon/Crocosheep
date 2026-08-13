@@ -151,6 +151,41 @@
     });
   }
 
+  // Paramètre caché supplémentaire : plus le fuseau horaire d'un contact
+  // est loin du tien (>6h d'écart), plus le prochain seuil est facile à
+  // atteindre en lui envoyant des animaux — pensé pour les couples/amis à
+  // distance, cas d'usage n°1 du projet. Ton propre décalage est écrit une
+  // fois au démarrage ; celui d'un contact est allé chercher à l'ouverture
+  // de sa discussion et mis en cache sur l'objet contact pour la session.
+  function publishOwnTimezone() {
+    if (!FIREBASE_READY) return;
+    authReady.then((ok) => {
+      if (!ok) return;
+      db.collection("profiles").doc(state.pseudo).set(
+        { tzOffset: new Date().getTimezoneOffset() },
+        { merge: true }
+      ).catch((e) => console.warn("Publication fuseau horaire impossible", e));
+    });
+  }
+
+  function fetchContactTimezone(contact) {
+    if (!FIREBASE_READY || contact.bot || typeof contact.tzOffset === "number") return;
+    authReady.then((ok) => {
+      if (!ok) return;
+      db.collection("profiles").doc(contact.code).get()
+        .then((snap) => {
+          if (snap.exists && typeof snap.data().tzOffset === "number") contact.tzOffset = snap.data().tzOffset;
+        })
+        .catch((e) => console.warn("Fuseau horaire indisponible pour", contact.code, e));
+    });
+  }
+
+  function timezoneGapBonus(contact) {
+    if (!contact || typeof contact.tzOffset !== "number") return 0;
+    const gapHours = Math.abs(new Date().getTimezoneOffset() - contact.tzOffset) / 60;
+    return gapHours > 6 ? 1 : 0;
+  }
+
   // Compteur "reçu" — jamais suivi jusqu'ici. Repose sur les deux
   // écouteurs de messages entrants déjà en place (aperçu contacts + fil
   // ouvert) ; limite connue : la toute première synchro d'un appareil tout
@@ -223,12 +258,30 @@
   // une base aléatoire, + des facteurs discrets liés au moment de l'envoi
   // (heure, parité de la seconde) — invisibles pour qui utilise l'appli,
   // dans l'esprit "chasse au trésor" plutôt qu'un simple tirage uniforme.
-  function randomThreshold() {
+  function randomThreshold(bonus = 0) {
     const d = new Date(now()); // horloge calée sur le serveur, pas sur l'appareil — voir plus haut
     let t = 9 + Math.floor(Math.random() * 3); // base : 9, 10 ou 11
     if (d.getHours() >= 7 && d.getHours() < 12) t += 1; // matinée (7h-12h)
     if (d.getSeconds() % 2 === 1) t -= 1; // seconde impaire au moment du tirage
+    t -= bonus; // ex. écart de fuseau horaire avec le contact — voir timezoneGapBonus
     return Math.max(1, t);
+  }
+
+  function isPrime(n) {
+    if (n < 2) return false;
+    if (n % 2 === 0) return n === 2;
+    for (let i = 3; i * i <= n; i += 2) {
+      if (n % i === 0) return false;
+    }
+    return true;
+  }
+
+  // Encore un paramètre caché : si le nombre total de moutons envoyés dans
+  // ta vie est premier pile au moment du tirage, léger coup de pouce. Se
+  // combine avec les autres facteurs — personne ne devrait le repérer sans
+  // comparer des notes avec quelqu'un d'autre.
+  function primeMoutonBonus() {
+    return isPrime(state.sentTotals.mouton) ? 1 : 0;
   }
 
   function randomCode() {
@@ -589,7 +642,10 @@
     renderChatBubbles(); // affichage immédiat depuis le cache local, pas d'écran vide en attendant le réseau
     renderDock();
     showScreen("chat");
-    if (!c.bot) subscribeToThread(c); // le bot est purement local, rien à écouter côté serveur
+    if (!c.bot) {
+      subscribeToThread(c); // le bot est purement local, rien à écouter côté serveur
+      fetchContactTimezone(c);
+    }
   }
 
   function subscribeToThread(contact) {
@@ -685,13 +741,13 @@
       state.stock[type] -= 1;
     }
 
+    const c = state.contacts.find((x) => x.id === activeContactId);
+
     state.sentTotals[type] += 1;
-    checkUnlock(type); // marche pour tous les paliers : dépenser des crocodiles fait aussi progresser vers le lion, etc.
+    checkUnlock(type, c); // marche pour tous les paliers : dépenser des crocodiles fait aussi progresser vers le lion, etc.
     saveState();
     renderDock();
     syncStatsDelta(type !== "mouton" ? { [type]: -1 } : null, { [type]: 1 }, null);
-
-    const c = state.contacts.find((x) => x.id === activeContactId);
 
     if (c.bot) {
       c.history.push({ dir: "out", animal: type, ts: Date.now() });
@@ -751,11 +807,11 @@
     return 10 * Math.pow(8, tierIndex - 1);
   }
 
-  function checkUnlock(sentType) {
+  function checkUnlock(sentType, contact) {
     const idx = TIER_ORDER.indexOf(sentType);
     const nextTier = TIER_ORDER[idx + 1];
     if (nextTier && !state.unlocked[nextTier] && state.sentTotals[sentType] >= state.nextThreshold[nextTier]) {
-      state.nextThreshold[nextTier] = state.sentTotals[sentType] + randomThreshold();
+      state.nextThreshold[nextTier] = state.sentTotals[sentType] + randomThreshold(timezoneGapBonus(contact) + primeMoutonBonus());
       grantUnlock(nextTier); // synchronise stock + le nextThreshold qu'on vient de mettre à jour
     }
 
@@ -1062,6 +1118,9 @@
    * Historique des versions
    * ------------------------------------------------------------- */
   const CHANGELOG = [
+    { version: "v9", date: "13 août 2026", changes: [
+      "Deux nouveaux paramètres cachés : écart de fuseau horaire avec le contact, nombre premier de moutons envoyés dans la vie",
+    ]},
     { version: "v8", date: "13 août 2026", changes: [
       "Vrai logo crocodile de Pierre, recolorié automatiquement (corps vert foncé, contour et œil gardés)",
       "3 animaux de plus : dragon, panda, T-Rex",
@@ -1253,5 +1312,6 @@
   handleIncomingLink();
   subscribeContactPreviews();
   subscribeOwnProfile();
+  publishOwnTimezone();
   showScreen("contacts");
 })();
