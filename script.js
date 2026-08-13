@@ -226,6 +226,7 @@
       since: Date.now(),
       stock: { crocodile: 0, lion: 0, licorne: 0, rhino: 0 },
       sentTotals: { mouton: 0, crocodile: 0, lion: 0, licorne: 0, rhino: 0 },
+      receivedTotals: { mouton: 0, crocodile: 0, lion: 0, licorne: 0, rhino: 0 },
       unlocked,
       nextThreshold,
       contacts: seedContacts(),
