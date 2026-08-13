@@ -8,6 +8,7 @@ Format : `[ ]` à faire · `[~]` en cours · `[x]` fait (avec commit si applicab
 
 ## En attente (bloqué sur une décision de Pierre)
 
+- `[?]` **Historique visible avant ajout du contact** — comportement actuel confirmé normal (pas un bug) : le fil `pairs/{pairId}` existe dès qu'une des deux personnes connaît le code de l'autre et écrit, indépendamment de l'ajout local en contact ; "ajouter un contact" est juste un signet local, ça n'a jamais été une porte d'accès à la conversation. Séparation entre paires différentes confirmée intacte (chaque paire = son propre fil isolé). Question posée à Pierre : préfère-t-il garder ce comportement, ou masquer les messages reçus tant que le contact n'est pas ajouté localement (vraie demande de contact) ? Pas de code changé tant qu'il n'a pas tranché.
 - `[?]` **Vraies notifications app fermée** — nécessite Firebase Cloud Messaging + Service Worker + Cloud Function, ce qui impose de passer le projet Firebase en facturation payante (plan Blaze, carte bancaire). Version "onglet ouvert" déjà livrée (v10) sans ce coût. Décision financière laissée à Pierre.
 - `[?]` **App Check (anti-bot réseau)** — code déjà branché côté client, inactif tant qu'une clé reCAPTCHA v3 n'est pas créée par Pierre sur google.com/recaptcha/admin et collée dans `firebase-config.js`.
 - `[?]` **Vrais paiements dans la boutique** — laissée en maquette (décision autonome, conforme à l'instruction initiale de Pierre) ; un vrai système demanderait comptes marchand + engagements financiers/légaux que je ne prends pas seul.
