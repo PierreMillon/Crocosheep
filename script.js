@@ -813,7 +813,7 @@
   function checkUnlock(sentType, contact) {
     const idx = TIER_ORDER.indexOf(sentType);
     const nextTier = TIER_ORDER[idx + 1];
-    if (nextTier && !state.unlocked[nextTier] && state.sentTotals[sentType] >= state.nextThreshold[nextTier]) {
+    if (nextTier && state.sentTotals[sentType] >= state.nextThreshold[nextTier]) {
       state.nextThreshold[nextTier] = state.sentTotals[sentType] + randomThreshold(timezoneGapBonus(contact) + primeMoutonBonus());
       grantUnlock(nextTier); // synchronise stock + le nextThreshold qu'on vient de mettre à jour
     }
