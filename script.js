@@ -116,6 +116,18 @@
     return `${l}-${n}`;
   }
 
+  // Clé plus longue, distincte du code public : le code (ex. "W-867") est
+  // fait pour être partagé (lien de contact) et ne doit JAMAIS suffire, à
+  // lui seul, à usurper une identité. Cette clé sert uniquement à prouver
+  // que c'est bien toi qui restaures ton identité sur un autre appareil —
+  // elle n'est jamais incluse dans le lien de partage.
+  function randomRecoveryKey() {
+    const chars = "abcdefghjkmnpqrstuvwxyz23456789"; // sans caractères ambigus (0/o, 1/l/i)
+    let key = "";
+    for (let i = 0; i < 10; i++) key += chars[Math.floor(Math.random() * chars.length)];
+    return key;
+  }
+
   function seedContacts() {
     return [
       {
@@ -141,6 +153,7 @@
     UNLOCKABLE_TIERS.forEach((t) => { nextThreshold[t] = randomThreshold(); unlocked[t] = false; });
     return {
       pseudo: randomCode(),
+      recoveryKey: randomRecoveryKey(),
       since: Date.now(),
       stock: { crocodile: 0, lion: 0, licorne: 0, rhino: 0 },
       sentTotals: { mouton: 0, crocodile: 0, lion: 0, licorne: 0, rhino: 0 },
@@ -167,6 +180,7 @@
     }
     s.stock = { crocodile: 0, lion: 0, licorne: 0, rhino: 0, ...s.stock };
     s.sentTotals = { mouton: 0, crocodile: 0, lion: 0, licorne: 0, rhino: 0, ...s.sentTotals };
+    if (!s.recoveryKey) s.recoveryKey = randomRecoveryKey(); // comptes déjà en test avant l'ajout de cette clé
     return s;
   }
 
@@ -610,18 +624,32 @@
     showScreen("contacts");
   });
 
-  document.getElementById("edit-code").addEventListener("click", () => {
-    const next = prompt(
-      "Colle ici le code affiché sur ton autre appareil (ex. W-867) pour que celui-ci devienne la même identité.\n\nAttention : tes contacts et ton historique restent propres à cet appareil, seul le code change.",
-      state.pseudo
+  // Le code public (ex. "W-867") sert à être ajouté en contact — il ne doit
+  // JAMAIS suffire, seul, à devenir quelqu'un d'autre. La clé de
+  // récupération, elle, n'est jamais partagée avec le lien de contact :
+  // il faut aller la chercher exprès ici pour l'obtenir.
+  document.getElementById("show-recovery-key").addEventListener("click", () => {
+    prompt(
+      "Ta clé de récupération (garde-la pour toi, ne la partage jamais comme ton lien de contact) :\n\nPour retrouver cette identité sur un autre appareil, colle cette valeur complète dans \"Restaurer une identité\" sur cet autre appareil.",
+      `${state.pseudo}:${state.recoveryKey}`
     );
-    if (next === null) return;
-    const clean = next.trim().toUpperCase();
-    if (!clean || clean === state.pseudo) return;
-    state.pseudo = clean;
+  });
+
+  document.getElementById("restore-identity").addEventListener("click", () => {
+    const input = prompt(
+      "Colle ici la clé de récupération complète affichée sur ton autre appareil (format CODE:clé).\n\nAttention : tes contacts et ton historique restent propres à cet appareil, seule l'identité change."
+    );
+    if (!input) return;
+    const [code, key] = input.trim().split(":");
+    if (!code || !key) {
+      showToast("Format invalide — colle bien CODE:clé en entier");
+      return;
+    }
+    state.pseudo = code.trim().toUpperCase();
+    state.recoveryKey = key.trim();
     saveState();
     renderProfile();
-    showToast(`Identité changée : ${clean}`);
+    showToast(`Identité restaurée : ${state.pseudo}`);
   });
 
   document.getElementById("share-link").addEventListener("click", async () => {
