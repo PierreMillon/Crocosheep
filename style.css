@@ -303,13 +303,6 @@ body {
   padding-top: 8px;
 }
 
-.sender-progress {
-  text-align: center;
-  font-size: 12px;
-  color: var(--muted);
-  margin: 0 0 8px;
-}
-
 .send-stack {
   display: flex;
   flex-direction: column;

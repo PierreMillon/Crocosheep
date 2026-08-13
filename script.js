@@ -486,29 +486,6 @@
       band.addEventListener("click", () => sendAnimal(type));
       stack.appendChild(band);
     });
-
-    renderProgress();
-  }
-
-  function nextLockedTier() {
-    return UNLOCKABLE_TIERS.find((t) => !state.unlocked[t]) || null;
-  }
-
-  function renderProgress() {
-    const p = document.getElementById("sender-progress");
-    const target = nextLockedTier();
-    if (target) {
-      const prevType = TIER_ORDER[TIER_ORDER.indexOf(target) - 1];
-      const ratio = Math.min(1, state.sentTotals[prevType] / state.nextThreshold[target]);
-      p.textContent = `${prevType === "mouton" ? "🐑" : ANIMALS[prevType].emoji} ${ANIMALS[target].label.toLowerCase()} approche…`;
-      p.style.background = `linear-gradient(90deg, var(--accent) ${Math.round(ratio * 100)}%, transparent 0)`;
-    } else {
-      const last = TIER_ORDER[TIER_ORDER.length - 1];
-      p.textContent = state.stock[last] > 0
-        ? `${ANIMALS[last].emoji} tout est débloqué — ${ANIMALS[last].label.toLowerCase()} en stock`
-        : `${ANIMALS[last].emoji} tout est débloqué — stock épuisé, continue d'envoyer pour en regagner`;
-      p.style.background = "none";
-    }
   }
 
   /* ---------------------------------------------------------------
@@ -572,8 +549,7 @@
       state.stock[nextTier] += 2;
       showToast(`${ANIMALS[nextTier].emoji} ${ANIMALS[nextTier].label} débloqué !`);
     } else {
-      state.stock[nextTier] += 1;
-      showToast(`${ANIMALS[nextTier].emoji} +1 ${ANIMALS[nextTier].label.toLowerCase()}`);
+      state.stock[nextTier] += 1; // gain silencieux, pas de popup à chaque fois — juste le pastille de stock qui monte
     }
     state.nextThreshold[nextTier] = state.sentTotals[sentType] + randomThreshold();
   }
