@@ -403,8 +403,6 @@
     stopContactPreviews();
     activeContactId = contactId;
     const c = state.contacts.find((x) => x.id === contactId);
-    document.getElementById("chat-avatar").textContent = c.code.slice(0, 1);
-    document.getElementById("chat-avatar").style.background = c.color;
     document.getElementById("chat-code").textContent = c.code;
     renderChatBubbles(); // affichage immédiat depuis le cache local, pas d'écran vide en attendant le réseau
     renderDock();
