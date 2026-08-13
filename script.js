@@ -49,10 +49,10 @@
 
   const ANIMALS = {
     mouton:    { label: "Mouton",     color: "#f4ede0", tier: 0 },
-    crocodile: { label: "Crocodile",  color: "#2f5233", tier: 1, emoji: "🐊" },
-    lion:      { label: "Lion",       color: "#d9a441", tier: 2, emoji: "🦁" },
-    licorne:   { label: "Licorne",    color: "#b98fd6", tier: 3, emoji: "🦄" },
-    rhino:     { label: "Rhinocéros", color: "#8a8f99", tier: 4, emoji: "🦏" },
+    crocodile: { label: "Crocodile",  color: "#2f5233", tier: 1, emoji: "🐊", price: "0,99 €" },
+    lion:      { label: "Lion",       color: "#d9a441", tier: 2, emoji: "🦁", price: "2,99 €" },
+    licorne:   { label: "Licorne",    color: "#b98fd6", tier: 3, emoji: "🦄", price: "9,99 €" },
+    rhino:     { label: "Rhinocéros", color: "#8a8f99", tier: 4, emoji: "🦏", price: "29,99 €" },
   };
   const TIER_ORDER = ["mouton", "crocodile", "lion", "licorne", "rhino"];
   const CUSTOM_SVG = { mouton: SHEEP_SVG, crocodile: CROCODILE_SVG };
@@ -300,6 +300,7 @@
     contacts: document.getElementById("screen-contacts"),
     chat: document.getElementById("screen-chat"),
     profile: document.getElementById("screen-profile"),
+    group: document.getElementById("screen-group"),
   };
 
   function showScreen(name) {
@@ -348,11 +349,13 @@
   function stopContactPreviews() {
     unsubscribeContactPreviews.forEach((fn) => fn());
     unsubscribeContactPreviews = [];
+    stopGroupLists();
   }
 
   function subscribeContactPreviews() {
     stopContactPreviews();
     renderContacts(); // affichage immédiat depuis le cache local, pas d'écran vide en attendant le réseau
+    subscribeGroupLists();
     if (!FIREBASE_READY) return;
     authReady.then((ok) => {
       if (!ok) return;
@@ -379,6 +382,32 @@
   function renderContacts() {
     const list = document.getElementById("contacts-list");
     list.innerHTML = "";
+
+    myInvites.forEach((g) => {
+      const row = document.createElement("div");
+      row.className = "contact-item group-row";
+      row.innerHTML = `
+        <p class="contact-code"><span class="invite-tag">Invitation</span> ${g.label || g.id}</p>
+        <span class="invite-actions">
+          <button class="invite-btn invite-accept" data-action="accept">Accepter</button>
+          <button class="invite-btn invite-decline" data-action="decline">Ignorer</button>
+        </span>`;
+      row.querySelector('[data-action="accept"]').addEventListener("click", (e) => { e.stopPropagation(); acceptInvite(g.id); });
+      row.querySelector('[data-action="decline"]').addEventListener("click", (e) => { e.stopPropagation(); declineInvite(g.id); });
+      list.appendChild(row);
+    });
+
+    myGroups.forEach((g) => {
+      const btn = document.createElement("button");
+      btn.className = "contact-item group-row";
+      const memberCount = (g.members || []).length;
+      btn.innerHTML = `
+        <p class="contact-code"><span class="group-tag">👥 Groupe</span> ${g.label || g.id}</p>
+        <span class="contact-preview"><span>${memberCount} membre${memberCount > 1 ? "s" : ""}</span></span>`;
+      btn.addEventListener("click", () => openGroup(g.id));
+      list.appendChild(btn);
+    });
+
     state.contacts.forEach((c) => {
       const last = c.history[c.history.length - 1];
       const btn = document.createElement("button");
@@ -401,6 +430,7 @@
   function openChat(contactId) {
     stopChatSubscription();
     stopContactPreviews();
+    stopGroupScreen();
     activeContactId = contactId;
     const c = state.contacts.find((x) => x.id === contactId);
     document.getElementById("chat-code").textContent = c.code;
@@ -557,6 +587,211 @@
   }
 
   /* ---------------------------------------------------------------
+   * Groupes — sondage muet façon "clic de reconnaissance" : le
+   * créateur lance, les membres répondent en envoyant un mouton (ou ne
+   * répondent pas, ce qui vaut pour un non), et seul le créateur voit
+   * le détail des réponses en direct. Demande Firebase — pas de sens
+   * en mode démo local tout seul.
+   * ------------------------------------------------------------- */
+  let myGroups = [];
+  let myInvites = [];
+  let unsubscribeMyGroups = null;
+  let unsubscribeMyInvites = null;
+
+  function subscribeGroupLists() {
+    if (!FIREBASE_READY) return;
+    authReady.then((ok) => {
+      if (!ok) return;
+      unsubscribeMyGroups = db.collection("groups").where("members", "array-contains", state.pseudo)
+        .onSnapshot((snap) => {
+          myGroups = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+          renderContacts();
+        }, (e) => console.warn("Liste des groupes indisponible", e));
+      unsubscribeMyInvites = db.collection("groups").where("pendingInvites", "array-contains", state.pseudo)
+        .onSnapshot((snap) => {
+          myInvites = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+          renderContacts();
+        }, (e) => console.warn("Invitations indisponibles", e));
+    });
+  }
+
+  function stopGroupLists() {
+    if (unsubscribeMyGroups) { unsubscribeMyGroups(); unsubscribeMyGroups = null; }
+    if (unsubscribeMyInvites) { unsubscribeMyInvites(); unsubscribeMyInvites = null; }
+  }
+
+  function createGroup() {
+    if (!FIREBASE_READY) { showToast("Les groupes ont besoin de la synchro activée"); return; }
+    const label = prompt("Nom du groupe (facultatif) :", "");
+    authReady.then((ok) => {
+      if (!ok) return;
+      db.collection("groups").add({
+        creator: state.pseudo,
+        label: (label || "").trim() || `Groupe de ${state.pseudo}`,
+        members: [state.pseudo],
+        pendingInvites: [],
+        currentPollId: null,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      }).then((ref) => openGroup(ref.id))
+        .catch((e) => { console.error(e); showToast("Impossible de créer le groupe"); });
+    });
+  }
+
+  function acceptInvite(groupId) {
+    authReady.then((ok) => {
+      if (!ok) return;
+      db.collection("groups").doc(groupId).update({
+        pendingInvites: firebase.firestore.FieldValue.arrayRemove(state.pseudo),
+        members: firebase.firestore.FieldValue.arrayUnion(state.pseudo),
+      }).catch((e) => { console.error(e); showToast("Impossible de rejoindre le groupe"); });
+    });
+  }
+
+  function declineInvite(groupId) {
+    authReady.then((ok) => {
+      if (!ok) return;
+      db.collection("groups").doc(groupId).update({
+        pendingInvites: firebase.firestore.FieldValue.arrayRemove(state.pseudo),
+      }).catch((e) => console.error(e));
+    });
+  }
+
+  function inviteToGroup(groupId, code) {
+    authReady.then((ok) => {
+      if (!ok) return;
+      db.collection("groups").doc(groupId).update({
+        pendingInvites: firebase.firestore.FieldValue.arrayUnion(code),
+      }).then(() => showToast(`Invitation envoyée à ${code}`))
+        .catch((e) => { console.error(e); showToast("Invitation impossible"); });
+    });
+  }
+
+  function launchPoll(groupId) {
+    authReady.then((ok) => {
+      if (!ok) return;
+      db.collection("groups").doc(groupId).collection("polls").add({
+        startedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        startedBy: state.pseudo,
+      }).then((pollRef) => db.collection("groups").doc(groupId).update({ currentPollId: pollRef.id }))
+        .then(() => showToast("Sondage lancé"))
+        .catch((e) => { console.error(e); showToast("Impossible de lancer le sondage"); });
+    });
+  }
+
+  function respondToPoll(groupId, pollId) {
+    if (looksAutomated(Date.now())) return;
+    authReady.then((ok) => {
+      if (!ok) return;
+      db.collection("groups").doc(groupId).collection("polls").doc(pollId)
+        .collection("responses").doc(state.pseudo).set({
+          animal: "mouton",
+          ts: firebase.firestore.FieldValue.serverTimestamp(),
+        }).catch((e) => console.error(e));
+    });
+  }
+
+  let activeGroupId = null;
+  let unsubscribeGroupDoc = null;
+  let unsubscribeGroupPoll = null;
+
+  function stopGroupScreen() {
+    if (unsubscribeGroupDoc) { unsubscribeGroupDoc(); unsubscribeGroupDoc = null; }
+    if (unsubscribeGroupPoll) { unsubscribeGroupPoll(); unsubscribeGroupPoll = null; }
+  }
+
+  function openGroup(groupId) {
+    stopChatSubscription();
+    stopContactPreviews();
+    stopGroupLists();
+    stopGroupScreen();
+    activeGroupId = groupId;
+    showScreen("group");
+    authReady.then((ok) => {
+      if (!ok || activeGroupId !== groupId) return;
+      unsubscribeGroupDoc = db.collection("groups").doc(groupId).onSnapshot((snap) => {
+        if (!snap.exists) { showToast("Ce groupe n'existe plus"); showScreen("contacts"); return; }
+        renderGroup({ id: snap.id, ...snap.data() });
+      }, (e) => console.error("Groupe indisponible", e));
+    });
+  }
+
+  function renderGroup(group) {
+    document.getElementById("group-label").textContent = group.label || group.id;
+    const isCreator = group.creator === state.pseudo;
+    const body = document.getElementById("group-body");
+
+    let html = `<p class="group-section-label">Membres</p><div class="group-members">`;
+    html += group.members.map((m) => `<span class="group-member-chip">${m}</span>`).join("");
+    html += `</div>`;
+
+    if (isCreator) {
+      const invitable = state.contacts
+        .map((c) => c.code)
+        .filter((code) => !group.members.includes(code) && !(group.pendingInvites || []).includes(code));
+      html += `<button class="add-member-btn" id="add-member-btn">+ Ajouter un membre</button>`;
+      html += `<button class="poll-launch-btn" id="launch-poll-btn">🔔 Lancer un sondage</button>`;
+      html += `<div id="poll-tally-area"></div>`;
+      body.innerHTML = html;
+
+      document.getElementById("add-member-btn").addEventListener("click", () => {
+        if (!invitable.length) { showToast("Tous tes contacts sont déjà dans le groupe"); return; }
+        const pick = prompt(`Code à inviter (parmi tes contacts) :\n${invitable.join(", ")}`);
+        if (!pick) return;
+        const code = pick.trim().toUpperCase();
+        if (!invitable.includes(code)) { showToast("Ce code n'est pas dans tes contacts disponibles"); return; }
+        inviteToGroup(group.id, code);
+      });
+      document.getElementById("launch-poll-btn").addEventListener("click", () => launchPoll(group.id));
+
+      subscribeGroupPoll(group);
+    } else {
+      if (!group.currentPollId) {
+        html += `<p class="group-waiting">En attente du premier sondage 🕊️</p>`;
+        body.innerHTML = html;
+      } else {
+        html += `<div id="member-poll-area"></div>`;
+        body.innerHTML = html;
+        subscribeMemberResponse(group);
+      }
+    }
+  }
+
+  function subscribeGroupPoll(group) {
+    if (unsubscribeGroupPoll) { unsubscribeGroupPoll(); unsubscribeGroupPoll = null; }
+    const area = document.getElementById("poll-tally-area");
+    if (!group.currentPollId) { area.innerHTML = `<p class="group-waiting">Pas encore de sondage lancé.</p>`; return; }
+    unsubscribeGroupPoll = db.collection("groups").doc(group.id).collection("polls").doc(group.currentPollId)
+      .collection("responses").onSnapshot((snap) => {
+        const responded = snap.docs.map((d) => d.id);
+        const total = group.members.length;
+        const pending = group.members.filter((m) => !responded.includes(m));
+        area.innerHTML = `
+          <p class="poll-tally">${responded.length}/${total}</p>
+          <p class="poll-tally-label">ont répondu</p>
+          <p class="poll-list-title">Ont dit oui</p>
+          <div class="poll-list">${responded.map((m) => `<span class="poll-chip yes">${m}</span>`).join("") || `<span class="poll-chip pending">Personne pour l'instant</span>`}</div>
+          <hr class="poll-divider">
+          <p class="poll-list-title">Pas encore répondu</p>
+          <div class="poll-list">${pending.map((m) => `<span class="poll-chip pending">${m}</span>`).join("") || `<span class="poll-chip yes">Tout le monde a répondu 🎉</span>`}</div>
+        `;
+      }, (e) => console.error("Réponses indisponibles", e));
+  }
+
+  function subscribeMemberResponse(group) {
+    if (unsubscribeGroupPoll) { unsubscribeGroupPoll(); unsubscribeGroupPoll = null; }
+    const area = document.getElementById("member-poll-area");
+    unsubscribeGroupPoll = db.collection("groups").doc(group.id).collection("polls").doc(group.currentPollId)
+      .collection("responses").doc(state.pseudo).onSnapshot((snap) => {
+        if (snap.exists) {
+          area.innerHTML = `<p class="poll-responded">✅ Tu as répondu à ce sondage</p>`;
+        } else {
+          area.innerHTML = `<button class="poll-respond-btn" id="respond-btn" aria-label="Répondre au sondage">${SHEEP_SVG}</button>`;
+          document.getElementById("respond-btn").addEventListener("click", () => respondToPoll(group.id, group.currentPollId));
+        }
+      }, (e) => console.error("Réponse indisponible", e));
+  }
+
+  /* ---------------------------------------------------------------
    * Écran profil
    * ------------------------------------------------------------- */
   function renderProfile() {
@@ -581,6 +816,36 @@
         <span class="badge-icon">${iconMarkup(type)}</span>
         <p class="badge-name">${ANIMALS[type].label}</p>
         <p class="badge-count">${count} envoyé${count > 1 ? "s" : ""}</p>`;
+      grid.appendChild(card);
+    });
+
+    renderShop();
+  }
+
+  // Boutique factice — aucun paiement réel, juste pour montrer le principe :
+  // un tap "achète" un pack de 3, débloque le palier si besoin. C'est la
+  // même mécanique que gagner via le clicker, juste instantanée.
+  function buyAnimal(type) {
+    state.unlocked[type] = true;
+    state.stock[type] = (state.stock[type] || 0) + 3;
+    saveState();
+    renderProfile();
+    if (screens.chat && !screens.chat.classList.contains("screen-hidden")) renderDock();
+    showToast(`🎉 Achat simulé : +3 ${ANIMALS[type].label.toLowerCase()} (aucun vrai paiement)`);
+  }
+
+  function renderShop() {
+    const grid = document.getElementById("shop-grid");
+    grid.innerHTML = "";
+    UNLOCKABLE_TIERS.forEach((type) => {
+      const card = document.createElement("div");
+      card.className = "shop-card";
+      card.innerHTML = `
+        <span class="shop-icon">${iconMarkup(type)}</span>
+        <p class="shop-name">${ANIMALS[type].label}</p>
+        <p class="shop-qty">Pack de 3 — ${state.stock[type]} en stock</p>
+        <button class="shop-buy-btn" data-type="${type}">${ANIMALS[type].price}</button>`;
+      card.querySelector(".shop-buy-btn").addEventListener("click", () => buyAnimal(type));
       grid.appendChild(card);
     });
   }
@@ -652,6 +917,7 @@
   document.getElementById("open-profile").addEventListener("click", () => {
     stopChatSubscription();
     stopContactPreviews();
+    stopGroupScreen();
     renderProfile();
     showScreen("profile");
   });
@@ -664,6 +930,12 @@
     subscribeContactPreviews();
     showScreen("contacts");
   });
+  document.getElementById("back-to-contacts-from-group").addEventListener("click", () => {
+    stopGroupScreen();
+    subscribeContactPreviews();
+    showScreen("contacts");
+  });
+  document.getElementById("create-group").addEventListener("click", createGroup);
 
   // Le code public (ex. "W-867") sert à être ajouté en contact — il ne doit
   // JAMAIS suffire, seul, à devenir quelqu'un d'autre. La clé de
