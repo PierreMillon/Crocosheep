@@ -189,8 +189,16 @@
     return key;
   }
 
+  // Contact permanent, purement local (pas de synchro Firestore) : sert à
+  // se faire une idée de l'appli tout seul, ou à la montrer à quelqu'un
+  // sans attendre qu'il ait installé quoi que ce soit.
+  function botContact() {
+    return { id: "bot", code: "🤖 Bot", color: "#4f7a58", bot: true, history: [] };
+  }
+
   function seedContacts() {
     return [
+      botContact(),
       {
         id: "c1", code: "R-482", color: "#5c8a53",
         history: [
@@ -242,6 +250,7 @@
     s.stock = { crocodile: 0, lion: 0, licorne: 0, rhino: 0, ...s.stock };
     s.sentTotals = { mouton: 0, crocodile: 0, lion: 0, licorne: 0, rhino: 0, ...s.sentTotals };
     if (!s.recoveryKey) s.recoveryKey = randomRecoveryKey(); // comptes déjà en test avant l'ajout de cette clé
+    if (!s.contacts.some((c) => c.id === "bot")) s.contacts.unshift(botContact()); // comptes déjà en test avant l'ajout du bot
     return s;
   }
 
@@ -359,7 +368,7 @@
     if (!FIREBASE_READY) return;
     authReady.then((ok) => {
       if (!ok) return;
-      state.contacts.forEach((c) => {
+      state.contacts.filter((c) => !c.bot).forEach((c) => {
         const unsub = db.collection("pairs").doc(pairId(state.pseudo, c.code))
           .collection("messages").orderBy("ts", "desc").limit(1)
           .onSnapshot((snap) => {
@@ -437,7 +446,7 @@
     renderChatBubbles(); // affichage immédiat depuis le cache local, pas d'écran vide en attendant le réseau
     renderDock();
     showScreen("chat");
-    subscribeToThread(c);
+    if (!c.bot) subscribeToThread(c); // le bot est purement local, rien à écouter côté serveur
   }
 
   function subscribeToThread(contact) {
@@ -510,7 +519,7 @@
       const band = document.createElement("button");
       band.className = "send-band";
       band.setAttribute("aria-label", `Envoyer un ${ANIMALS[type].label.toLowerCase()}`);
-      band.style.background = type === "mouton" ? "var(--sheep)" : `${ANIMALS[type].color}55`;
+      band.style.background = type === "mouton" ? "var(--sheep-band-bg)" : `${ANIMALS[type].color}55`;
       band.innerHTML = `
         <span class="send-band-icon">${iconMarkup(type)}</span>
         ${type !== "mouton" ? `<span class="stock-pill">${state.stock[type]}</span>` : ""}`;
@@ -540,6 +549,14 @@
     renderDock();
 
     const c = state.contacts.find((x) => x.id === activeContactId);
+
+    if (c.bot) {
+      c.history.push({ dir: "out", animal: type, ts: Date.now() });
+      saveState();
+      renderChatBubbles();
+      scheduleBotReply(c);
+      return;
+    }
 
     if (FIREBASE_READY) {
       authReady.then((ok) => {
@@ -584,6 +601,25 @@
       state.stock[nextTier] += 1; // gain silencieux, pas de popup à chaque fois — juste le pastille de stock qui monte
     }
     state.nextThreshold[nextTier] = state.sentTotals[sentType] + randomThreshold();
+  }
+
+  // Le bot répond après un petit délai (pour ne pas avoir l'air instantané
+  // et robotique), avec un animal tiré au hasard — surtout des moutons,
+  // avec de temps en temps un animal plus rare pour donner un aperçu de
+  // toute la gamme, indépendamment de ce que la personne a débloqué elle-même.
+  const BOT_REPLY_ANIMALS = ["mouton", "mouton", "mouton", "mouton", "crocodile", "mouton", "lion", "mouton", "licorne", "rhino"];
+  function scheduleBotReply(contact) {
+    const delay = 700 + Math.random() * 1800;
+    setTimeout(() => {
+      const animal = BOT_REPLY_ANIMALS[Math.floor(Math.random() * BOT_REPLY_ANIMALS.length)];
+      contact.history.push({ dir: "in", animal, ts: Date.now() });
+      saveState();
+      if (activeContactId === contact.id && !screens.chat.classList.contains("screen-hidden")) {
+        renderChatBubbles();
+      } else if (!screens.contacts.classList.contains("screen-hidden")) {
+        renderContacts();
+      }
+    }, delay);
   }
 
   /* ---------------------------------------------------------------

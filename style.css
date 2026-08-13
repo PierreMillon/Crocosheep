@@ -5,6 +5,7 @@
   --muted: #6b5638;
   --line: #ece3d3;
   --sheep: #f4ede0;
+  --sheep-band-bg: #a8a29a;
   --sheep-ink: #1c1a17;
   --crocodile: #5c8a53;
   --lion: #d9a441;
@@ -528,7 +529,7 @@ body {
   width: 100%;
   border: none;
   border-radius: var(--radius);
-  background: var(--sheep);
+  background: var(--sheep-band-bg);
   padding: 30px 18px;
   display: flex;
   align-items: center;
