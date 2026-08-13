@@ -486,16 +486,26 @@
 
   document.getElementById("share-link").addEventListener("click", async () => {
     const url = `${location.origin}${location.pathname}?add=${encodeURIComponent(state.pseudo)}`;
+
     if (navigator.share) {
-      try { await navigator.share({ title: "Crocosheep", text: "Ajoute-moi sur Crocosheep 🐑", url }); }
-      catch (e) { /* partage annulé par l'utilisateur — rien à faire */ }
-      return;
+      try {
+        await navigator.share({ title: "Crocosheep", text: "Ajoute-moi sur Crocosheep 🐑", url });
+        return; // partage réussi (ou feuille refermée proprement), rien d'autre à faire
+      } catch (e) {
+        if (e && e.name === "AbortError") return; // fermé volontairement par l'utilisateur
+        // Sinon (ex. share() cassé en PWA standalone sur certaines versions iOS) :
+        // on ne s'arrête pas là, on tente le repli copier-coller ci-dessous.
+        console.warn("Partage natif indisponible, repli sur la copie", e);
+      }
     }
+
     try {
       await navigator.clipboard.writeText(url);
       showToast("Lien copié !");
     } catch (e) {
-      showToast(url);
+      // Dernier filet, imparable sur tous les navigateurs : une boîte système
+      // avec le lien pré-sélectionné, à copier à la main.
+      prompt("Copie ce lien :", url);
     }
   });
 
