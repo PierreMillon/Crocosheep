@@ -53,8 +53,11 @@
     lion:      { label: "Lion",       color: "#d9a441", tier: 2, emoji: "🦁", price: "2,99 €" },
     licorne:   { label: "Licorne",    color: "#b98fd6", tier: 3, emoji: "🦄", price: "9,99 €" },
     rhino:     { label: "Rhinocéros", color: "#8a8f99", tier: 4, emoji: "🦏", price: "29,99 €" },
+    dragon:    { label: "Dragon",     color: "#7a2e2e", tier: 5, emoji: "🐉", price: "49,99 €" },
+    panda:     { label: "Panda",      color: "#2b2420", tier: 6, emoji: "🐼", price: "99,99 €" },
+    trex:      { label: "T-Rex",      color: "#4f5b2f", tier: 7, emoji: "🦖", price: "199,99 €" },
   };
-  const TIER_ORDER = ["mouton", "crocodile", "lion", "licorne", "rhino"];
+  const TIER_ORDER = ["mouton", "crocodile", "lion", "licorne", "rhino", "dragon", "panda", "trex"];
   const CUSTOM_SVG = { mouton: SHEEP_SVG, crocodile: CROCODILE_SVG };
 
   function iconMarkup(type) {
@@ -216,6 +219,21 @@
 
   const UNLOCKABLE_TIERS = TIER_ORDER.slice(1); // tout sauf mouton, gratuit dès le départ
 
+  // Générés depuis TIER_ORDER plutôt qu'écrits en dur — ajouter un animal
+  // dans TIER_ORDER/ANIMALS suffit alors, pas besoin de retoucher tous les
+  // objets d'état un par un (c'est justement l'oubli qui a cassé le stock
+  // au dernier ajout).
+  function zeroPerTier() {
+    const o = {};
+    TIER_ORDER.forEach((t) => { o[t] = 0; });
+    return o;
+  }
+  function zeroStock() {
+    const o = {};
+    UNLOCKABLE_TIERS.forEach((t) => { o[t] = 0; });
+    return o;
+  }
+
   function freshState() {
     const nextThreshold = {};
     const unlocked = {};
@@ -224,9 +242,9 @@
       pseudo: randomCode(),
       recoveryKey: randomRecoveryKey(),
       since: Date.now(),
-      stock: { crocodile: 0, lion: 0, licorne: 0, rhino: 0 },
-      sentTotals: { mouton: 0, crocodile: 0, lion: 0, licorne: 0, rhino: 0 },
-      receivedTotals: { mouton: 0, crocodile: 0, lion: 0, licorne: 0, rhino: 0 },
+      stock: zeroStock(),
+      sentTotals: zeroPerTier(),
+      receivedTotals: zeroPerTier(),
       unlocked,
       nextThreshold,
       contacts: seedContacts(),
@@ -238,18 +256,18 @@
   // personnes déjà en train de tester.
   function migrateState(s) {
     if (!s.unlocked) {
-      s.unlocked = { crocodile: !!s.crocodileUnlocked, lion: false, licorne: false, rhino: false };
-      s.nextThreshold = {
-        crocodile: s.nextCrocodileThreshold || (s.sentTotals?.mouton || 0) + randomThreshold(),
-        lion: randomThreshold(),
-        licorne: randomThreshold(),
-        rhino: randomThreshold(),
-      };
+      s.unlocked = { crocodile: !!s.crocodileUnlocked };
+      s.nextThreshold = { crocodile: s.nextCrocodileThreshold || (s.sentTotals?.mouton || 0) + randomThreshold() };
       delete s.crocodileUnlocked;
       delete s.nextCrocodileThreshold;
     }
-    s.stock = { crocodile: 0, lion: 0, licorne: 0, rhino: 0, ...s.stock };
-    s.sentTotals = { mouton: 0, crocodile: 0, lion: 0, licorne: 0, rhino: 0, ...s.sentTotals };
+    UNLOCKABLE_TIERS.forEach((t) => {
+      if (!(t in s.unlocked)) s.unlocked[t] = false;
+      if (!(t in s.nextThreshold)) s.nextThreshold[t] = randomThreshold();
+    });
+    s.stock = { ...zeroStock(), ...s.stock };
+    s.sentTotals = { ...zeroPerTier(), ...s.sentTotals };
+    s.receivedTotals = { ...zeroPerTier(), ...s.receivedTotals };
     if (!s.recoveryKey) s.recoveryKey = randomRecoveryKey(); // comptes déjà en test avant l'ajout de cette clé
     if (!s.contacts.some((c) => c.id === "bot")) s.contacts.unshift(botContact()); // comptes déjà en test avant l'ajout du bot
     return s;
