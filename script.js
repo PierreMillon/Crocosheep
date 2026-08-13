@@ -470,6 +470,20 @@
     showScreen("contacts");
   });
 
+  document.getElementById("edit-code").addEventListener("click", () => {
+    const next = prompt(
+      "Colle ici le code affiché sur ton autre appareil (ex. W-867) pour que celui-ci devienne la même identité.\n\nAttention : tes contacts et ton historique restent propres à cet appareil, seul le code change.",
+      state.pseudo
+    );
+    if (next === null) return;
+    const clean = next.trim().toUpperCase();
+    if (!clean || clean === state.pseudo) return;
+    state.pseudo = clean;
+    saveState();
+    renderProfile();
+    showToast(`Identité changée : ${clean}`);
+  });
+
   document.getElementById("share-link").addEventListener("click", async () => {
     const url = `${location.origin}${location.pathname}?add=${encodeURIComponent(state.pseudo)}`;
     if (navigator.share) {
