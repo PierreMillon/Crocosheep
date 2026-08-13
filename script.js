@@ -431,6 +431,12 @@
       btn.addEventListener("click", () => openChat(c.id));
       list.appendChild(btn);
     });
+
+    const createGroupBtn = document.createElement("button");
+    createGroupBtn.className = "create-group-btn";
+    createGroupBtn.textContent = "+ Créer un groupe";
+    createGroupBtn.addEventListener("click", createGroup);
+    list.appendChild(createGroupBtn);
   }
 
   /* ---------------------------------------------------------------
@@ -890,6 +896,17 @@
    * Historique des versions
    * ------------------------------------------------------------- */
   const CHANGELOG = [
+    { version: "v7", date: "13 août 2026", changes: [
+      "Groupes : créer, inviter tes contacts, sondage muet lancé par le créateur, réponse en un tap (mouton) ou rien",
+      "Boutique factice sur le profil (maquette visuelle, aucun vrai paiement)",
+      "Bot de démo toujours disponible pour tester sans deuxième téléphone",
+      "Clé de récupération séparée du code public — le code seul ne suffit plus à usurper une identité",
+      "Anti-triche : clics trop rapides/robotiques ignorés, horloge calée sur le serveur plutôt que celle du téléphone",
+      "Bouton mouton en fond gris pour mieux ressortir",
+      "Avatar rond retiré partout (liste et en-tête de discussion) ; texte d'accroche et barre de progression retirés",
+      "Bouton d'un animal épuisé (stock à 0) qui disparaît au lieu de rester grisé",
+      "Horloge en direct au-dessus des boutons d'envoi",
+    ]},
     { version: "v6", date: "13 août 2026", changes: [
       "Crocodile en illustration maison (plus l'emoji)",
       "Chaque animal envoyé fait progresser vers le palier suivant, pas que le mouton",
@@ -971,7 +988,6 @@
     subscribeContactPreviews();
     showScreen("contacts");
   });
-  document.getElementById("create-group").addEventListener("click", createGroup);
 
   // Le code public (ex. "W-867") sert à être ajouté en contact — il ne doit
   // JAMAIS suffire, seul, à devenir quelqu'un d'autre. La clé de
