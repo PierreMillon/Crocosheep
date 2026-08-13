@@ -211,6 +211,58 @@ body {
   margin: 0;
 }
 
+.create-group-btn {
+  display: block;
+  margin: 6px 12px 0;
+  padding: 13px;
+  border: 2px dashed rgba(43, 36, 32, 0.25);
+  border-radius: var(--radius);
+  background: none;
+  color: var(--ink);
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.create-group-btn:active { transform: scale(0.98); }
+
+.group-row .contact-code { display: flex; align-items: center; gap: 6px; }
+
+.group-tag {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--accent);
+  background: #e7f0e9;
+  padding: 2px 7px;
+  border-radius: 999px;
+}
+
+.invite-tag {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #a15b25;
+  background: #fdead9;
+  padding: 2px 7px;
+  border-radius: 999px;
+}
+
+.invite-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.invite-btn {
+  border: none;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 7px 12px;
+  cursor: pointer;
+}
+
+.invite-accept { background: var(--accent); color: #fff; }
+.invite-decline { background: var(--line); color: var(--ink); }
+
 /* ===== Discussion ===== */
 .chat-header-id {
   display: flex;
@@ -303,6 +355,16 @@ body {
   padding-top: 8px;
 }
 
+.live-clock {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  margin: 0 0 8px;
+}
+
 .send-stack {
   display: flex;
   flex-direction: column;
@@ -353,12 +415,145 @@ body {
   padding: 0 6px;
 }
 
-@keyframes unlock-in {
-  from { opacity: 0; transform: scaleY(0); }
-  to { opacity: 1; transform: scaleY(1); }
+
+/* ===== Groupe ===== */
+.group-body {
+  flex: 1;
+  padding: 16px 20px 30px;
+  overflow-y: auto;
 }
 
-.send-band { animation: unlock-in 260ms ease; transform-origin: bottom; }
+.group-section-label {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  margin: 0 0 10px;
+}
+
+.group-members {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 22px;
+}
+
+.group-member-chip {
+  background: var(--surface);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.add-member-btn {
+  border: none;
+  background: none;
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 12.5px;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+  margin-bottom: 22px;
+}
+
+.poll-launch-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  border: none;
+  border-radius: var(--radius);
+  background: var(--ink);
+  color: #fff;
+  font-size: 15.5px;
+  font-weight: 800;
+  padding: 18px;
+  cursor: pointer;
+  margin-bottom: 22px;
+}
+
+.poll-launch-btn:active { transform: scale(0.98); }
+
+.poll-tally {
+  text-align: center;
+  font-size: 26px;
+  font-weight: 800;
+  margin: 0 0 4px;
+}
+
+.poll-tally-label {
+  text-align: center;
+  color: var(--muted);
+  font-size: 12.5px;
+  margin: 0 0 18px;
+}
+
+.poll-list-title {
+  font-size: 11.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  margin: 0 0 8px;
+}
+
+.poll-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 18px;
+}
+
+.poll-chip {
+  background: var(--surface);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.poll-chip.yes { background: #e7f0e9; color: var(--accent); }
+.poll-chip.pending { color: var(--muted); }
+
+.poll-divider {
+  border: none;
+  border-top: 1px solid rgba(43, 36, 32, 0.15);
+  margin: 0 0 16px;
+}
+
+.group-waiting {
+  text-align: center;
+  color: var(--muted);
+  font-size: 13.5px;
+  padding: 40px 20px;
+}
+
+.poll-respond-btn {
+  width: 100%;
+  border: none;
+  border-radius: var(--radius);
+  background: var(--sheep);
+  padding: 30px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  margin-bottom: 12px;
+}
+
+.poll-respond-btn svg { width: 64px; height: 56px; }
+
+.poll-responded {
+  text-align: center;
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 14px;
+  padding: 24px 20px;
+}
 
 /* ===== Profil ===== */
 .profile-card {

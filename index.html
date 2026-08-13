@@ -30,7 +30,24 @@
 
     <div class="contacts-list" id="contacts-list"></div>
 
+    <button id="create-group" class="create-group-btn">+ Créer un groupe</button>
+
     <p class="contacts-hint">Chaque animal veut dire ce que vous en avez décidé.</p>
+  </section>
+
+  <!-- ===== ÉCRAN GROUPE ===== -->
+  <section id="screen-group" class="screen screen-hidden" data-screen="group">
+    <header class="chat-header">
+      <button id="back-to-contacts-from-group" class="icon-btn" aria-label="Retour aux contacts">←</button>
+      <div class="chat-header-id">
+        <span class="contact-code" id="group-label">—</span>
+      </div>
+      <span class="chat-header-spacer" aria-hidden="true"></span>
+    </header>
+
+    <div class="group-body" id="group-body">
+      <!-- rendu variable en JS selon le rôle (créateur / membre / invitation) -->
+    </div>
   </section>
 
   <!-- ===== ÉCRAN DISCUSSION ===== -->
@@ -46,6 +63,7 @@
     <div class="chat-bubbles" id="chat-bubbles"></div>
 
     <div class="sender-dock">
+      <p class="live-clock" id="live-clock">--:--:--</p>
       <div class="send-stack" id="send-stack">
         <!-- une bande plein-largeur par animal débloqué, générées en JS -->
       </div>

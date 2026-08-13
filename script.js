@@ -728,6 +728,15 @@
     changelogOverlay.classList.add("screen-hidden");
   });
 
+  // Horloge en direct au-dessus du dock d'envoi — la même horloge (calée
+  // serveur) que celle utilisée par l'algorithme caché du seuil.
+  function tickClock() {
+    const el = document.getElementById("live-clock");
+    if (el) el.textContent = exactTime(now());
+  }
+  tickClock();
+  setInterval(tickClock, 1000);
+
   handleIncomingLink();
   subscribeContactPreviews();
   showScreen("contacts");
