@@ -292,7 +292,6 @@ body {
   display: flex;
   flex-direction: column;
   max-width: 60%;
-  animation: pop-in 220ms ease;
 }
 
 .bubble-line.out { align-self: flex-end; align-items: flex-end; }
@@ -323,11 +322,6 @@ body {
   font-size: 10.5px;
   color: var(--muted);
   margin-top: 2px;
-}
-
-@keyframes pop-in {
-  from { opacity: 0; transform: translateY(6px) scale(0.85); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 .chat-empty {

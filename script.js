@@ -106,6 +106,68 @@
   }
 
   /* ---------------------------------------------------------------
+   * Profil partagé (Firestore profiles/{pseudo}) — stock, totaux et
+   * paliers ne vivaient qu'en local jusqu'ici. Deux appareils avec la
+   * même identité (via la clé de récupération) avaient donc chacun
+   * leur propre inventaire, ce qui n'a pas de sens pour une seule
+   * personne. Maintenant : affichage optimiste immédiat en local
+   * comme avant, + synchro Firestore en arrière-plan avec des
+   * increment() atomiques (pas des valeurs absolues) pour que deux
+   * envois quasi simultanés sur deux appareils s'additionnent au lieu
+   * de s'écraser l'un l'autre. Un onSnapshot permanent sur son propre
+   * profil ramène ensuite tout appareil au même état.
+   * ------------------------------------------------------------- */
+  function syncStatsDelta(stockDelta, sentDelta, receivedDelta) {
+    if (!FIREBASE_READY) return;
+    authReady.then((ok) => {
+      if (!ok) return;
+      const updates = {};
+      Object.entries(stockDelta || {}).forEach(([k, v]) => { updates[`stock.${k}`] = firebase.firestore.FieldValue.increment(v); });
+      Object.entries(sentDelta || {}).forEach(([k, v]) => { updates[`sentTotals.${k}`] = firebase.firestore.FieldValue.increment(v); });
+      Object.entries(receivedDelta || {}).forEach(([k, v]) => { updates[`receivedTotals.${k}`] = firebase.firestore.FieldValue.increment(v); });
+      if (!Object.keys(updates).length) return;
+      db.collection("profiles").doc(state.pseudo).set(updates, { merge: true })
+        .catch((e) => console.warn("Synchro stats impossible", e));
+    });
+  }
+
+  // unlocked/nextThreshold sont un état, pas des compteurs — un simple
+  // écrasement (dernier écrit gagne) suffit, les écritures concurrentes y
+  // sont rares comparé aux envois.
+  function syncUnlockState() {
+    if (!FIREBASE_READY) return;
+    authReady.then((ok) => {
+      if (!ok) return;
+      db.collection("profiles").doc(state.pseudo).set(
+        { unlocked: state.unlocked, nextThreshold: state.nextThreshold },
+        { merge: true }
+      ).catch((e) => console.warn("Synchro paliers impossible", e));
+    });
+  }
+
+  let unsubscribeOwnProfile = null;
+  function subscribeOwnProfile() {
+    if (!FIREBASE_READY || unsubscribeOwnProfile) return;
+    authReady.then((ok) => {
+      if (!ok) return;
+      unsubscribeOwnProfile = db.collection("profiles").doc(state.pseudo).onSnapshot((snap) => {
+        if (!snap.exists) return;
+        const d = snap.data();
+        if (d.stock) state.stock = { ...state.stock, ...d.stock };
+        if (d.sentTotals) state.sentTotals = { ...state.sentTotals, ...d.sentTotals };
+        if (d.receivedTotals) state.receivedTotals = { ...state.receivedTotals, ...d.receivedTotals };
+        if (d.unlocked) state.unlocked = { ...state.unlocked, ...d.unlocked };
+        if (d.nextThreshold) state.nextThreshold = { ...state.nextThreshold, ...d.nextThreshold };
+        saveState();
+        // Reflète le changement quel que soit l'écran affiché — un autre
+        // appareil a pu mettre à jour le stock pendant qu'on est ailleurs.
+        if (!screens.chat.classList.contains("screen-hidden")) renderDock();
+        if (!screens.profile.classList.contains("screen-hidden")) renderProfile();
+      }, (e) => console.warn("Profil personnel indisponible", e));
+    });
+  }
+
+  /* ---------------------------------------------------------------
    * Horloge serveur — pour que les paramètres cachés basés sur l'heure
    * (voir randomThreshold) ne se laissent pas manipuler en changeant
    * l'heure du téléphone. Un seul aller-retour au démarrage suffit :
@@ -568,6 +630,7 @@
     checkUnlock(type); // marche pour tous les paliers : dépenser des crocodiles fait aussi progresser vers le lion, etc.
     saveState();
     renderDock();
+    syncStatsDelta(type !== "mouton" ? { [type]: -1 } : null, { [type]: 1 }, null);
 
     const c = state.contacts.find((x) => x.id === activeContactId);
 
@@ -608,13 +671,15 @@
   // (mouton → crocodile → lion → licorne → rhino). Chaque palier, une fois
   // débloqué, continue de gagner +1 en stock à chaque nouveau seuil atteint.
   function grantUnlock(tier) {
+    let gained = 1;
     if (!state.unlocked[tier]) {
       state.unlocked[tier] = true;
-      state.stock[tier] += 2;
+      gained = 2;
       showToast(`${ANIMALS[tier].emoji} ${ANIMALS[tier].label} débloqué !`);
-    } else {
-      state.stock[tier] += 1; // gain silencieux, pas de popup à chaque fois — juste la pastille de stock qui monte
-    }
+    } // sinon : gain silencieux, pas de popup à chaque fois — juste la pastille de stock qui monte
+    state.stock[tier] += gained;
+    syncStatsDelta({ [tier]: gained }, null, null);
+    syncUnlockState();
   }
 
   // Filet de secours : envoyer le palier juste en dessous reste la voie
@@ -631,8 +696,8 @@
     const idx = TIER_ORDER.indexOf(sentType);
     const nextTier = TIER_ORDER[idx + 1];
     if (nextTier && !state.unlocked[nextTier] && state.sentTotals[sentType] >= state.nextThreshold[nextTier]) {
-      grantUnlock(nextTier);
       state.nextThreshold[nextTier] = state.sentTotals[sentType] + randomThreshold();
+      grantUnlock(nextTier); // synchronise stock + le nextThreshold qu'on vient de mettre à jour
     }
 
     if (sentType === "mouton") {
