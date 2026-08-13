@@ -11,10 +11,10 @@
  * "Vos applications" → l'app Web → objet de config affiché.
  * ------------------------------------------------------------- */
 window.FIREBASE_CONFIG = {
-  apiKey: "REMPLACE_MOI",
-  authDomain: "REMPLACE_MOI.firebaseapp.com",
-  projectId: "REMPLACE_MOI",
-  storageBucket: "REMPLACE_MOI.appspot.com",
-  messagingSenderId: "REMPLACE_MOI",
-  appId: "REMPLACE_MOI",
+  apiKey: "AIzaSyA4q_Elzmhv8xHiyF-q8wntOoNcmY1NHNc",
+  authDomain: "crocosheep-test.firebaseapp.com",
+  projectId: "crocosheep-test",
+  storageBucket: "crocosheep-test.firebasestorage.app",
+  messagingSenderId: "558991811832",
+  appId: "1:558991811832:web:89fe9e40a88ecee41b070d",
 };
