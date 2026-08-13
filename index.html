@@ -22,8 +22,9 @@
   <!-- ===== ÉCRAN CONTACTS ===== -->
   <section id="screen-contacts" class="screen" data-screen="contacts">
     <header class="app-header">
-      <h1 class="app-title"><span class="app-title-mouton" aria-hidden="true"></span>Crocosheep</h1>
-      <button id="open-profile" class="icon-btn" aria-label="Voir mon profil">👤</button>
+      <button id="show-changelog" class="version-badge" aria-label="Voir les nouveautés de cette version">v1</button>
+      <h1 class="app-title">Crocosheep</h1>
+      <button id="open-profile" class="icon-btn icon-btn-mouton" aria-label="Voir mon profil"></button>
     </header>
 
     <div class="contacts-list" id="contacts-list"></div>
@@ -45,10 +46,10 @@
     <div class="chat-bubbles" id="chat-bubbles"></div>
 
     <div class="sender-dock">
-      <div class="sender-row" id="sender-row">
-        <!-- boutons animaux générés en JS -->
-      </div>
       <p class="sender-progress" id="sender-progress"></p>
+      <div class="send-stack" id="send-stack">
+        <!-- une bande plein-largeur par animal débloqué, générées en JS -->
+      </div>
     </div>
   </section>
 
@@ -75,6 +76,16 @@
 
     <p class="profile-footnote">Visible par tes contacts. Rien d'autre n'est public.</p>
   </section>
+
+  <div id="changelog-overlay" class="changelog-overlay screen-hidden">
+    <div class="changelog-panel">
+      <div class="changelog-head">
+        <h2>Nouveautés</h2>
+        <button id="close-changelog" class="icon-btn" aria-label="Fermer">✕</button>
+      </div>
+      <div class="changelog-list" id="changelog-list"></div>
+    </div>
+  </div>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 

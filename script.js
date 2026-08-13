@@ -26,17 +26,39 @@
       <ellipse cx="93" cy="29" rx="5" ry="3" fill="#1c1a17" transform="rotate(35 93 29)"/>
     </svg>`;
 
+  // Silhouette maison inspirée du logo crocodile envoyé par Pierre : corps
+  // vert foncé, contour vert (plus clair que le corps), œil noir gardé tel quel.
+  const CROCODILE_SVG = `
+    <svg viewBox="0 0 220 90" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Crocodile">
+      <ellipse cx="55" cy="76" rx="8" ry="6" fill="#173a1c"/>
+      <ellipse cx="75" cy="78" rx="8" ry="6" fill="#173a1c"/>
+      <ellipse cx="140" cy="76" rx="8" ry="6" fill="#173a1c"/>
+      <ellipse cx="160" cy="78" rx="8" ry="6" fill="#173a1c"/>
+      <path d="M8,62 C2,54 4,44 14,40 C10,32 16,24 26,24 C30,14 42,8 52,16
+               C58,8 70,8 76,18 C84,10 96,10 100,20 C110,12 122,14 126,24
+               C150,22 168,26 182,34 C198,40 210,44 214,50 C216,53 214,56 210,56
+               C202,54 196,52 190,54 C186,60 176,62 168,58 C160,64 148,64 142,58
+               C130,66 110,68 92,66 C76,72 56,74 40,70 C28,74 16,72 8,62 Z"
+            fill="#173a1c" stroke="#4da54f" stroke-width="3" stroke-linejoin="round"/>
+      <path d="M190,53 L196,60 L184,58 Z" fill="#f4ede0"/>
+      <path d="M178,56 L183,63 L172,60 Z" fill="#f4ede0"/>
+      <path d="M204,49 L210,55 L200,54 Z" fill="#f4ede0"/>
+      <circle cx="118" cy="20" r="9" fill="#f4ede0" stroke="#4da54f" stroke-width="2.5"/>
+      <ellipse cx="118" cy="20" rx="3.4" ry="6.5" fill="#1c1a17"/>
+    </svg>`;
+
   const ANIMALS = {
     mouton:    { label: "Mouton",     color: "#f4ede0", tier: 0 },
-    crocodile: { label: "Crocodile",  color: "#5c8a53", tier: 1, emoji: "🐊" },
+    crocodile: { label: "Crocodile",  color: "#2f5233", tier: 1, emoji: "🐊" },
     lion:      { label: "Lion",       color: "#d9a441", tier: 2, emoji: "🦁" },
     licorne:   { label: "Licorne",    color: "#b98fd6", tier: 3, emoji: "🦄" },
     rhino:     { label: "Rhinocéros", color: "#8a8f99", tier: 4, emoji: "🦏" },
   };
   const TIER_ORDER = ["mouton", "crocodile", "lion", "licorne", "rhino"];
+  const CUSTOM_SVG = { mouton: SHEEP_SVG, crocodile: CROCODILE_SVG };
 
   function iconMarkup(type) {
-    return type === "mouton" ? SHEEP_SVG : `<span class="emoji">${ANIMALS[type].emoji}</span>`;
+    return CUSTOM_SVG[type] ? CUSTOM_SVG[type] : `<span class="emoji">${ANIMALS[type].emoji}</span>`;
   }
 
   /* ---------------------------------------------------------------
@@ -48,7 +70,11 @@
    * chaque paire de codes a son propre fil de messages, protégé par
    * une authentification anonyme (gratuite, sans carte bancaire).
    * ------------------------------------------------------------- */
-  const FIREBASE_READY = !!(window.FIREBASE_CONFIG && window.FIREBASE_CONFIG.apiKey !== "REMPLACE_MOI");
+  const FIREBASE_READY = !!(
+    window.FIREBASE_CONFIG &&
+    window.FIREBASE_CONFIG.apiKey !== "REMPLACE_MOI" &&
+    typeof firebase !== "undefined" // le SDK a pu échouer à charger (bloqueur de pub, réseau...) : on ne plante pas l'appli pour autant
+  );
   let db = null;
   let authReady = Promise.resolve(null);
 
@@ -72,8 +98,16 @@
    * fois dans une petite plage, pour illustrer le principe de ratio
    * variable sans obliger quiconque à cliquer 2000 fois pour tester.
    * ------------------------------------------------------------- */
+  // Amorce de l'algorithme caché "multi-paramètres" évoqué dans le brief :
+  // une base aléatoire, + des facteurs discrets liés au moment de l'envoi
+  // (heure, parité de la seconde) — invisibles pour qui utilise l'appli,
+  // dans l'esprit "chasse au trésor" plutôt qu'un simple tirage uniforme.
   function randomThreshold() {
-    return 8 + Math.floor(Math.random() * 7); // 8 à 14
+    const now = new Date();
+    let t = 9 + Math.floor(Math.random() * 3); // base : 9, 10 ou 11
+    if (now.getHours() >= 7 && now.getHours() < 12) t += 1; // matinée (7h-12h)
+    if (now.getSeconds() % 2 === 1) t -= 1; // seconde impaire au moment du tirage
+    return Math.max(1, t);
   }
 
   function randomCode() {
@@ -99,21 +133,50 @@
     ];
   }
 
-  function loadState() {
-    let raw = null;
-    try { raw = localStorage.getItem(STORAGE_KEY); } catch (e) { /* stockage indisponible */ }
-    if (raw) {
-      try { return JSON.parse(raw); } catch (e) { /* état corrompu, on repart à zéro */ }
-    }
+  const UNLOCKABLE_TIERS = TIER_ORDER.slice(1); // tout sauf mouton, gratuit dès le départ
+
+  function freshState() {
+    const nextThreshold = {};
+    const unlocked = {};
+    UNLOCKABLE_TIERS.forEach((t) => { nextThreshold[t] = randomThreshold(); unlocked[t] = false; });
     return {
       pseudo: randomCode(),
       since: Date.now(),
       stock: { crocodile: 0, lion: 0, licorne: 0, rhino: 0 },
       sentTotals: { mouton: 0, crocodile: 0, lion: 0, licorne: 0, rhino: 0 },
-      nextCrocodileThreshold: randomThreshold(),
-      crocodileUnlocked: false,
+      unlocked,
+      nextThreshold,
       contacts: seedContacts(),
     };
+  }
+
+  // Convertit l'ancien format (un seul palier crocodile codé en dur) vers le
+  // format générique actuel, pour ne pas faire perdre leur progression aux
+  // personnes déjà en train de tester.
+  function migrateState(s) {
+    if (!s.unlocked) {
+      s.unlocked = { crocodile: !!s.crocodileUnlocked, lion: false, licorne: false, rhino: false };
+      s.nextThreshold = {
+        crocodile: s.nextCrocodileThreshold || (s.sentTotals?.mouton || 0) + randomThreshold(),
+        lion: randomThreshold(),
+        licorne: randomThreshold(),
+        rhino: randomThreshold(),
+      };
+      delete s.crocodileUnlocked;
+      delete s.nextCrocodileThreshold;
+    }
+    s.stock = { crocodile: 0, lion: 0, licorne: 0, rhino: 0, ...s.stock };
+    s.sentTotals = { mouton: 0, crocodile: 0, lion: 0, licorne: 0, rhino: 0, ...s.sentTotals };
+    return s;
+  }
+
+  function loadState() {
+    let raw = null;
+    try { raw = localStorage.getItem(STORAGE_KEY); } catch (e) { /* stockage indisponible */ }
+    if (raw) {
+      try { return migrateState(JSON.parse(raw)); } catch (e) { /* état corrompu, on repart à zéro */ }
+    }
+    return freshState();
   }
 
   let state = loadState();
@@ -191,31 +254,51 @@
     return `il y a ${Math.round(hours / 24)} j`;
   }
 
-  // Rafraîchit l'aperçu (dernier animal + heure) de chaque contact
-  // avec un simple get() ponctuel — pas un listener permanent — pour
-  // rester très en dessous du quota gratuit même laissé ouvert des
-  // heures.
-  async function refreshContactPreviews() {
-    renderContacts();
+  // Heure exacte (HH:MM:SS) pour les bulles de discussion — utile pour
+  // suivre l'ordre précis d'un échange rapide, contrairement à "à l'instant"
+  // qui ne distingue rien entre plusieurs envois rapprochés.
+  function exactTime(ts) {
+    const d = new Date(ts);
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  }
+
+  // Vue "tableau de bord" : un listener temps réel par contact (juste le
+  // dernier message, limit(1)) pour que la liste se mette à jour toute
+  // seule sans qu'il faille rouvrir chaque discussion. Coupé dès qu'on
+  // quitte l'écran contacts pour ne pas laisser tourner des listeners
+  // inutiles en arrière-plan.
+  let unsubscribeContactPreviews = [];
+
+  function stopContactPreviews() {
+    unsubscribeContactPreviews.forEach((fn) => fn());
+    unsubscribeContactPreviews = [];
+  }
+
+  function subscribeContactPreviews() {
+    stopContactPreviews();
+    renderContacts(); // affichage immédiat depuis le cache local, pas d'écran vide en attendant le réseau
     if (!FIREBASE_READY) return;
-    const ok = await authReady;
-    if (!ok) return;
-    await Promise.all(state.contacts.map(async (c) => {
-      try {
-        const snap = await db.collection("pairs").doc(pairId(state.pseudo, c.code))
-          .collection("messages").orderBy("ts", "desc").limit(1).get();
-        if (snap.empty) return;
-        const m = snap.docs[0].data();
-        if (!m.ts) return; // écriture pas encore confirmée par le serveur
-        const last = { dir: m.from === state.pseudo ? "out" : "in", animal: m.animal, ts: m.ts.toMillis() };
-        const cached = c.history[c.history.length - 1];
-        if (!cached || cached.ts < last.ts) c.history.push(last);
-      } catch (e) {
-        console.warn("Aperçu indisponible pour", c.code, e);
-      }
-    }));
-    saveState();
-    renderContacts();
+    authReady.then((ok) => {
+      if (!ok) return;
+      state.contacts.forEach((c) => {
+        const unsub = db.collection("pairs").doc(pairId(state.pseudo, c.code))
+          .collection("messages").orderBy("ts", "desc").limit(1)
+          .onSnapshot((snap) => {
+            if (snap.empty) return;
+            const m = snap.docs[0].data();
+            if (!m.ts) return; // écriture pas encore confirmée par le serveur
+            const last = { dir: m.from === state.pseudo ? "out" : "in", animal: m.animal, ts: m.ts.toMillis() };
+            const cached = c.history[c.history.length - 1];
+            if (!cached || cached.ts < last.ts) {
+              c.history.push(last);
+              saveState();
+              renderContacts();
+            }
+          }, (err) => console.warn("Aperçu temps réel indisponible pour", c.code, err));
+        unsubscribeContactPreviews.push(unsub);
+      });
+    });
   }
 
   function renderContacts() {
@@ -226,12 +309,11 @@
       const btn = document.createElement("button");
       btn.className = "contact-item";
       btn.innerHTML = `
-        <span class="contact-avatar" style="background:${c.color}">${c.code.slice(0, 1)}</span>
-        <span class="contact-meta">
-          <p class="contact-code">${c.code}</p>
-          <span class="contact-preview">
-            ${last ? `<span class="contact-preview-icon">${last.animal === "mouton" ? "🐑" : ANIMALS[last.animal].emoji}</span><span>${timeAgo(last.ts)}</span>` : "<span>Aucun échange pour l'instant</span>"}
-          </span>
+        <p class="contact-code">${c.code}</p>
+        <span class="contact-preview">
+          ${last
+            ? `<span class="contact-preview-icon">${iconMarkup(last.animal)}</span><span>${exactTime(last.ts)}</span>`
+            : "<span>Aucun échange pour l'instant</span>"}
         </span>`;
       btn.addEventListener("click", () => openChat(c.id));
       list.appendChild(btn);
@@ -243,13 +325,14 @@
    * ------------------------------------------------------------- */
   function openChat(contactId) {
     stopChatSubscription();
+    stopContactPreviews();
     activeContactId = contactId;
     const c = state.contacts.find((x) => x.id === contactId);
     document.getElementById("chat-avatar").textContent = c.code.slice(0, 1);
     document.getElementById("chat-avatar").style.background = c.color;
     document.getElementById("chat-code").textContent = c.code;
     renderChatBubbles(); // affichage immédiat depuis le cache local, pas d'écran vide en attendant le réseau
-    renderSenderRow();
+    renderDock();
     showScreen("chat");
     subscribeToThread(c);
   }
@@ -290,7 +373,7 @@
       line.className = `bubble-line ${m.dir === "out" ? "out" : "in"}`;
       line.innerHTML = `
         <span class="bubble-icon">${iconMarkup(m.animal)}</span>
-        <span class="bubble-time">${timeAgo(m.ts)}</span>`;
+        <span class="bubble-time">${exactTime(m.ts)}</span>`;
       wrap.appendChild(line);
     });
     scrollChatToBottom();
@@ -307,48 +390,48 @@
     });
   }
 
-  function renderSenderRow() {
-    const row = document.getElementById("sender-row");
-    row.innerHTML = "";
+  // Le mouton occupe seul toute la largeur au départ. À chaque déblocage,
+  // cette même zone se redivise en bandes horizontales égales — une par
+  // animal débloqué, mouton toujours en haut — plutôt que d'ajouter des
+  // boutons à côté. Les animaux pas encore débloqués n'apparaissent nulle
+  // part ici (pas de cadenas, pas de placeholder).
+  function renderDock() {
+    const stack = document.getElementById("send-stack");
+    stack.innerHTML = "";
 
-    const sheepBtn = document.createElement("button");
-    sheepBtn.className = "animal-btn primary";
-    sheepBtn.setAttribute("aria-label", "Envoyer un mouton");
-    sheepBtn.innerHTML = SHEEP_SVG;
-    sheepBtn.addEventListener("click", () => sendAnimal("mouton"));
-    row.appendChild(sheepBtn);
-
-    if (state.crocodileUnlocked) {
-      const crocBtn = document.createElement("button");
-      crocBtn.className = "animal-btn secondary crocodile";
-      crocBtn.setAttribute("aria-label", "Envoyer un crocodile");
-      crocBtn.innerHTML = `${ANIMALS.crocodile.emoji}<span class="stock-badge">${state.stock.crocodile}</span>`;
-      crocBtn.addEventListener("click", () => sendAnimal("crocodile"));
-      row.appendChild(crocBtn);
-    }
-
-    ["lion", "licorne", "rhino"].forEach((type) => {
-      const lockBtn = document.createElement("button");
-      lockBtn.className = "animal-btn locked";
-      lockBtn.setAttribute("aria-label", `${ANIMALS[type].label} — pas encore débloqué`);
-      lockBtn.title = `${ANIMALS[type].label} — pas encore débloqué`;
-      lockBtn.innerHTML = `${ANIMALS[type].emoji}<span class="lock-mark">🔒</span>`;
-      row.appendChild(lockBtn);
+    const active = TIER_ORDER.filter((t) => t === "mouton" || state.unlocked[t]);
+    active.forEach((type) => {
+      const band = document.createElement("button");
+      band.className = "send-band";
+      band.setAttribute("aria-label", `Envoyer un ${ANIMALS[type].label.toLowerCase()}`);
+      band.style.background = type === "mouton" ? "var(--sheep)" : `${ANIMALS[type].color}55`;
+      band.innerHTML = `
+        <span class="send-band-icon">${iconMarkup(type)}</span>
+        ${type !== "mouton" ? `<span class="stock-pill">${state.stock[type]}</span>` : ""}`;
+      band.addEventListener("click", () => sendAnimal(type));
+      stack.appendChild(band);
     });
 
     renderProgress();
   }
 
+  function nextLockedTier() {
+    return UNLOCKABLE_TIERS.find((t) => !state.unlocked[t]) || null;
+  }
+
   function renderProgress() {
     const p = document.getElementById("sender-progress");
-    if (!state.crocodileUnlocked) {
-      const ratio = Math.min(1, state.sentTotals.mouton / state.nextCrocodileThreshold);
-      p.textContent = "🐑 le crocodile approche…";
+    const target = nextLockedTier();
+    if (target) {
+      const prevType = TIER_ORDER[TIER_ORDER.indexOf(target) - 1];
+      const ratio = Math.min(1, state.sentTotals[prevType] / state.nextThreshold[target]);
+      p.textContent = `${prevType === "mouton" ? "🐑" : ANIMALS[prevType].emoji} ${ANIMALS[target].label.toLowerCase()} approche…`;
       p.style.background = `linear-gradient(90deg, var(--accent) ${Math.round(ratio * 100)}%, transparent 0)`;
     } else {
-      p.textContent = state.stock.crocodile > 0
-        ? "🐊 crocodiles en stock"
-        : "🐊 stock épuisé — de nouveaux arrivent en continuant d'envoyer des moutons";
+      const last = TIER_ORDER[TIER_ORDER.length - 1];
+      p.textContent = state.stock[last] > 0
+        ? `${ANIMALS[last].emoji} tout est débloqué — ${ANIMALS[last].label.toLowerCase()} en stock`
+        : `${ANIMALS[last].emoji} tout est débloqué — stock épuisé, continue d'envoyer pour en regagner`;
       p.style.background = "none";
     }
   }
@@ -366,9 +449,9 @@
     }
 
     state.sentTotals[type] += 1;
-    if (type === "mouton") checkCrocodileUnlock();
+    checkUnlock(type); // marche pour tous les paliers : dépenser des crocodiles fait aussi progresser vers le lion, etc.
     saveState();
-    renderSenderRow();
+    renderDock();
 
     const c = state.contacts.find((x) => x.id === activeContactId);
 
@@ -397,18 +480,25 @@
     }
   }
 
-  function checkCrocodileUnlock() {
-    if (state.sentTotals.mouton < state.nextCrocodileThreshold) return;
+  // Envoyer un animal fait progresser vers le déblocage du palier suivant
+  // (mouton → crocodile → lion → licorne → rhino). Chaque palier, une fois
+  // débloqué, continue de gagner +1 en stock à chaque nouveau seuil atteint.
+  function checkUnlock(sentType) {
+    const idx = TIER_ORDER.indexOf(sentType);
+    const nextTier = TIER_ORDER[idx + 1];
+    if (!nextTier) return; // rhino : rien de plus rare à débloquer
 
-    if (!state.crocodileUnlocked) {
-      state.crocodileUnlocked = true;
-      state.stock.crocodile += 2;
-      showToast("🐊 Crocodile débloqué !");
+    if (state.sentTotals[sentType] < state.nextThreshold[nextTier]) return;
+
+    if (!state.unlocked[nextTier]) {
+      state.unlocked[nextTier] = true;
+      state.stock[nextTier] += 2;
+      showToast(`${ANIMALS[nextTier].emoji} ${ANIMALS[nextTier].label} débloqué !`);
     } else {
-      state.stock.crocodile += 1;
-      showToast("🐊 +1 crocodile");
+      state.stock[nextTier] += 1;
+      showToast(`${ANIMALS[nextTier].emoji} +1 ${ANIMALS[nextTier].label.toLowerCase()}`);
     }
-    state.nextCrocodileThreshold = state.sentTotals.mouton + randomThreshold();
+    state.nextThreshold[nextTier] = state.sentTotals[sentType] + randomThreshold();
   }
 
   /* ---------------------------------------------------------------
@@ -428,7 +518,7 @@
     grid.innerHTML = "";
     TIER_ORDER.forEach((type) => {
       const count = state.sentTotals[type];
-      const locked = type !== "mouton" && count === 0;
+      const locked = type !== "mouton" && !state.unlocked[type];
       const card = document.createElement("div");
       card.className = `badge-card ${locked ? "locked" : ""}`;
       card.innerHTML = `
@@ -438,6 +528,55 @@
         <p class="badge-count">${count} envoyé${count > 1 ? "s" : ""}</p>`;
       grid.appendChild(card);
     });
+  }
+
+  /* ---------------------------------------------------------------
+   * Historique des versions
+   * ------------------------------------------------------------- */
+  const CHANGELOG = [
+    { version: "v6", date: "13 août 2026", changes: [
+      "Crocodile en illustration maison (plus l'emoji)",
+      "Chaque animal envoyé fait progresser vers le palier suivant, pas que le mouton",
+      "Heure exacte (HH:MM:SS) sous chaque message envoyé",
+      "La zone d'envoi se divise en bandes au fil des déblocages ; les animaux verrouillés sont invisibles",
+      "Liste des contacts en tableau de bord (code + dernier envoi, mis à jour en direct)",
+    ]},
+    { version: "v5", date: "13 août 2026", changes: [
+      "Un appareil peut adopter le code d'un autre pour tester avec la même identité des deux côtés",
+      "Le partage de lien ne reste plus bloqué silencieusement sur iPhone",
+    ]},
+    { version: "v4", date: "13 août 2026", changes: [
+      "Plus de halo gris au tap sur iPhone",
+      "Le zoom ne vole plus les taps rapides sur le mouton",
+    ]},
+    { version: "v3", date: "13 août 2026", changes: [
+      "Synchronisation en direct entre deux téléphones (Firebase)",
+      "Appairage par lien partagé",
+    ]},
+    { version: "v2", date: "12 août 2026", changes: [
+      "Icône d'écran d'accueil iPhone",
+      "Fond orange",
+      "Correction du défilement vers le dernier message",
+    ]},
+    { version: "v1", date: "12 août 2026", changes: [
+      "Première maquette : contacts, discussion, profil",
+      "Mouton illustré, envoi libre et illimité",
+      "Déblocage du crocodile après des moutons envoyés",
+    ]},
+  ];
+  const APP_VERSION = CHANGELOG[0].version;
+
+  function renderChangelog() {
+    document.getElementById("changelog-list").innerHTML = CHANGELOG.map((entry) => `
+      <div class="changelog-entry">
+        <div class="changelog-version-row">
+          <span class="changelog-version">${entry.version}</span>
+          ${entry.version === APP_VERSION ? `<span class="changelog-current">actuelle</span>` : ""}
+          <span class="changelog-date">${entry.date}</span>
+        </div>
+        <ul>${entry.changes.map((c) => `<li>${c}</li>`).join("")}</ul>
+      </div>
+    `).join("");
   }
 
   /* ---------------------------------------------------------------
@@ -457,16 +596,17 @@
    * ------------------------------------------------------------- */
   document.getElementById("open-profile").addEventListener("click", () => {
     stopChatSubscription();
+    stopContactPreviews();
     renderProfile();
     showScreen("profile");
   });
   document.getElementById("back-to-contacts").addEventListener("click", () => {
     stopChatSubscription();
-    refreshContactPreviews();
+    subscribeContactPreviews();
     showScreen("contacts");
   });
   document.getElementById("back-to-contacts-from-profile").addEventListener("click", () => {
-    refreshContactPreviews();
+    subscribeContactPreviews();
     showScreen("contacts");
   });
 
@@ -509,11 +649,21 @@
     }
   });
 
-  document.querySelectorAll(".app-title-mouton").forEach((el) => {
-    el.style.backgroundImage = `url("data:image/svg+xml,${encodeURIComponent(SHEEP_SVG)}")`;
+  document.getElementById("open-profile").style.backgroundImage =
+    `url("data:image/svg+xml,${encodeURIComponent(SHEEP_SVG)}")`;
+
+  const versionBadge = document.getElementById("show-changelog");
+  versionBadge.textContent = APP_VERSION;
+  const changelogOverlay = document.getElementById("changelog-overlay");
+  versionBadge.addEventListener("click", () => {
+    renderChangelog();
+    changelogOverlay.classList.remove("screen-hidden");
+  });
+  document.getElementById("close-changelog").addEventListener("click", () => {
+    changelogOverlay.classList.add("screen-hidden");
   });
 
   handleIncomingLink();
-  refreshContactPreviews();
+  subscribeContactPreviews();
   showScreen("contacts");
 })();
