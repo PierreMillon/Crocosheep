@@ -90,6 +90,28 @@
   }
 
   /* ---------------------------------------------------------------
+   * Petits raccourcis Firestore — évitent de répéter
+   * db.collection("x").doc(y) partout et centralisent les noms de
+   * collection à un seul endroit.
+   * ------------------------------------------------------------- */
+  function threadRef(codeA, codeB) {
+    return db.collection("pairs").doc(pairId(codeA, codeB)).collection("messages");
+  }
+  function profileRef(pseudo) {
+    return db.collection("profiles").doc(pseudo);
+  }
+  function groupRef(groupId) {
+    return db.collection("groups").doc(groupId);
+  }
+
+  // Emballe tout code qui a besoin d'être authentifié avant de toucher
+  // Firestore : remplace le `authReady.then((ok) => { if (!ok) return; … })`
+  // qui revenait à l'identique un peu partout dans ce fichier.
+  function withAuth(fn) {
+    authReady.then((ok) => { if (ok) fn(); });
+  }
+
+  /* ---------------------------------------------------------------
    * Profil partagé (Firestore profiles/{pseudo}) — stock, totaux et
    * paliers ne vivaient qu'en local jusqu'ici. Deux appareils avec la
    * même identité (via la clé de récupération) avaient donc chacun
@@ -103,14 +125,13 @@
    * ------------------------------------------------------------- */
   function syncStatsDelta(stockDelta, sentDelta, receivedDelta) {
     if (!FIREBASE_READY) return;
-    authReady.then((ok) => {
-      if (!ok) return;
+    withAuth(() => {
       const updates = {};
       Object.entries(stockDelta || {}).forEach(([k, v]) => { updates[`stock.${k}`] = firebase.firestore.FieldValue.increment(v); });
       Object.entries(sentDelta || {}).forEach(([k, v]) => { updates[`sentTotals.${k}`] = firebase.firestore.FieldValue.increment(v); });
       Object.entries(receivedDelta || {}).forEach(([k, v]) => { updates[`receivedTotals.${k}`] = firebase.firestore.FieldValue.increment(v); });
       if (!Object.keys(updates).length) return;
-      db.collection("profiles").doc(state.pseudo).set(updates, { merge: true })
+      profileRef(state.pseudo).set(updates, { merge: true })
         .catch((e) => console.warn("Synchro stats impossible", e));
     });
   }
@@ -120,9 +141,8 @@
   // sont rares comparé aux envois.
   function syncUnlockState() {
     if (!FIREBASE_READY) return;
-    authReady.then((ok) => {
-      if (!ok) return;
-      db.collection("profiles").doc(state.pseudo).set(
+    withAuth(() => {
+      profileRef(state.pseudo).set(
         { unlocked: state.unlocked, nextThreshold: state.nextThreshold },
         { merge: true }
       ).catch((e) => console.warn("Synchro paliers impossible", e));
@@ -132,9 +152,8 @@
   let unsubscribeOwnProfile = null;
   function subscribeOwnProfile() {
     if (!FIREBASE_READY || unsubscribeOwnProfile) return;
-    authReady.then((ok) => {
-      if (!ok) return;
-      unsubscribeOwnProfile = db.collection("profiles").doc(state.pseudo).onSnapshot((snap) => {
+    withAuth(() => {
+      unsubscribeOwnProfile = profileRef(state.pseudo).onSnapshot((snap) => {
         if (!snap.exists) return;
         const d = snap.data();
         if (d.stock) state.stock = { ...state.stock, ...d.stock };
@@ -159,9 +178,8 @@
   // de sa discussion et mis en cache sur l'objet contact pour la session.
   function publishOwnTimezone() {
     if (!FIREBASE_READY) return;
-    authReady.then((ok) => {
-      if (!ok) return;
-      db.collection("profiles").doc(state.pseudo).set(
+    withAuth(() => {
+      profileRef(state.pseudo).set(
         { tzOffset: new Date().getTimezoneOffset() },
         { merge: true }
       ).catch((e) => console.warn("Publication fuseau horaire impossible", e));
@@ -170,9 +188,8 @@
 
   function fetchContactTimezone(contact) {
     if (!FIREBASE_READY || contact.bot || typeof contact.tzOffset === "number") return;
-    authReady.then((ok) => {
-      if (!ok) return;
-      db.collection("profiles").doc(contact.code).get()
+    withAuth(() => {
+      profileRef(contact.code).get()
         .then((snap) => {
           if (snap.exists && typeof snap.data().tzOffset === "number") contact.tzOffset = snap.data().tzOffset;
         })
@@ -210,8 +227,7 @@
   function now() { return Date.now() + serverTimeOffset; }
 
   if (FIREBASE_READY) {
-    authReady.then((ok) => {
-      if (!ok) return;
+    withAuth(() => {
       const ref = db.collection("_clock").doc(state.pseudo);
       ref.set({ t: firebase.firestore.FieldValue.serverTimestamp() })
         .then(() => ref.get({ source: "server" }))
@@ -495,11 +511,10 @@
     renderContacts(); // affichage immédiat depuis le cache local, pas d'écran vide en attendant le réseau
     subscribeGroupLists();
     if (!FIREBASE_READY) return;
-    authReady.then((ok) => {
-      if (!ok) return;
+    withAuth(() => {
       state.contacts.filter((c) => !c.bot).forEach((c) => {
-        const unsub = db.collection("pairs").doc(pairId(state.pseudo, c.code))
-          .collection("messages").orderBy("ts", "desc").limit(1)
+        const unsub = threadRef(state.pseudo, c.code)
+          .orderBy("ts", "desc").limit(1)
           .onSnapshot((snap) => {
             if (snap.empty) return;
             const m = snap.docs[0].data();
@@ -604,10 +619,9 @@
       grid.innerHTML = `<p class="group-waiting">Synchro non activée — profils publics indisponibles en mode démo local.</p>`;
       return;
     }
-    authReady.then((ok) => {
-      if (!ok) return;
+    withAuth(() => {
       if (unsubscribePublicProfile) unsubscribePublicProfile();
-      unsubscribePublicProfile = db.collection("profiles").doc(code).onSnapshot((snap) => {
+      unsubscribePublicProfile = profileRef(code).onSnapshot((snap) => {
         if (!snap.exists) {
           grid.innerHTML = `<p class="group-waiting">Rien à montrer pour l'instant — ${code} n'a encore rien envoyé ni reçu.</p>`;
           return;
@@ -653,11 +667,11 @@
 
   function subscribeToThread(contact) {
     if (!FIREBASE_READY) return;
-    authReady.then((ok) => {
+    withAuth(() => {
       // L'utilisateur a pu changer d'écran pendant l'authentification
-      if (!ok || activeContactId !== contact.id) return;
-      unsubscribeChat = db.collection("pairs").doc(pairId(state.pseudo, contact.code))
-        .collection("messages").orderBy("ts", "asc")
+      if (activeContactId !== contact.id) return;
+      unsubscribeChat = threadRef(state.pseudo, contact.code)
+        .orderBy("ts", "asc")
         .onSnapshot((snap) => {
           const watermark = contact.history.reduce((max, m) => Math.max(max, m.ts || 0), 0);
           const fresh = snap.docs
@@ -762,9 +776,11 @@
 
     if (FIREBASE_READY) {
       authReady.then((ok) => {
+        // Contrairement à withAuth(), on veut que l'échec d'authentification
+        // tombe dans le même .catch() que l'échec d'écriture ci-dessous —
+        // les deux doivent déclencher le même repli hors-ligne.
         if (!ok) throw new Error("auth indisponible");
-        return db.collection("pairs").doc(pairId(state.pseudo, c.code))
-          .collection("messages").add({
+        return threadRef(state.pseudo, c.code).add({
             from: state.pseudo,
             animal: type,
             ts: firebase.firestore.FieldValue.serverTimestamp(),
@@ -861,8 +877,7 @@
 
   function subscribeGroupLists() {
     if (!FIREBASE_READY) return;
-    authReady.then((ok) => {
-      if (!ok) return;
+    withAuth(() => {
       unsubscribeMyGroups = db.collection("groups").where("members", "array-contains", state.pseudo)
         .onSnapshot((snap) => {
           const prevPolls = {}; // pour repérer un nouveau sondage lancé sur un groupe qu'on suit déjà
@@ -895,8 +910,7 @@
   function createGroup() {
     if (!FIREBASE_READY) { showToast("Les groupes ont besoin de la synchro activée"); return; }
     const label = prompt("Nom du groupe (facultatif) :", "");
-    authReady.then((ok) => {
-      if (!ok) return;
+    withAuth(() => {
       db.collection("groups").add({
         creator: state.pseudo,
         label: (label || "").trim() || `Groupe de ${state.pseudo}`,
@@ -910,9 +924,8 @@
   }
 
   function acceptInvite(groupId) {
-    authReady.then((ok) => {
-      if (!ok) return;
-      db.collection("groups").doc(groupId).update({
+    withAuth(() => {
+      groupRef(groupId).update({
         pendingInvites: firebase.firestore.FieldValue.arrayRemove(state.pseudo),
         members: firebase.firestore.FieldValue.arrayUnion(state.pseudo),
       }).catch((e) => { console.error(e); showToast("Impossible de rejoindre le groupe"); });
@@ -920,18 +933,16 @@
   }
 
   function declineInvite(groupId) {
-    authReady.then((ok) => {
-      if (!ok) return;
-      db.collection("groups").doc(groupId).update({
+    withAuth(() => {
+      groupRef(groupId).update({
         pendingInvites: firebase.firestore.FieldValue.arrayRemove(state.pseudo),
       }).catch((e) => console.error(e));
     });
   }
 
   function inviteToGroup(groupId, code) {
-    authReady.then((ok) => {
-      if (!ok) return;
-      db.collection("groups").doc(groupId).update({
+    withAuth(() => {
+      groupRef(groupId).update({
         pendingInvites: firebase.firestore.FieldValue.arrayUnion(code),
       }).then(() => showToast(`Invitation envoyée à ${code}`))
         .catch((e) => { console.error(e); showToast("Invitation impossible"); });
@@ -939,12 +950,11 @@
   }
 
   function launchPoll(groupId) {
-    authReady.then((ok) => {
-      if (!ok) return;
-      db.collection("groups").doc(groupId).collection("polls").add({
+    withAuth(() => {
+      groupRef(groupId).collection("polls").add({
         startedAt: firebase.firestore.FieldValue.serverTimestamp(),
         startedBy: state.pseudo,
-      }).then((pollRef) => db.collection("groups").doc(groupId).update({ currentPollId: pollRef.id }))
+      }).then((pollRef) => groupRef(groupId).update({ currentPollId: pollRef.id }))
         .then(() => showToast("Sondage lancé"))
         .catch((e) => { console.error(e); showToast("Impossible de lancer le sondage"); });
     });
@@ -952,9 +962,8 @@
 
   function respondToPoll(groupId, pollId) {
     if (looksAutomated(Date.now())) return;
-    authReady.then((ok) => {
-      if (!ok) return;
-      db.collection("groups").doc(groupId).collection("polls").doc(pollId)
+    withAuth(() => {
+      groupRef(groupId).collection("polls").doc(pollId)
         .collection("responses").doc(state.pseudo).set({
           animal: "mouton",
           ts: firebase.firestore.FieldValue.serverTimestamp(),
@@ -978,9 +987,9 @@
     stopGroupScreen();
     activeGroupId = groupId;
     showScreen("group");
-    authReady.then((ok) => {
-      if (!ok || activeGroupId !== groupId) return;
-      unsubscribeGroupDoc = db.collection("groups").doc(groupId).onSnapshot((snap) => {
+    withAuth(() => {
+      if (activeGroupId !== groupId) return;
+      unsubscribeGroupDoc = groupRef(groupId).onSnapshot((snap) => {
         if (!snap.exists) { showToast("Ce groupe n'existe plus"); showScreen("contacts"); return; }
         renderGroup({ id: snap.id, ...snap.data() });
       }, (e) => console.error("Groupe indisponible", e));
@@ -1032,7 +1041,7 @@
     if (unsubscribeGroupPoll) { unsubscribeGroupPoll(); unsubscribeGroupPoll = null; }
     const area = document.getElementById("poll-tally-area");
     if (!group.currentPollId) { area.innerHTML = `<p class="group-waiting">Pas encore de sondage lancé.</p>`; return; }
-    unsubscribeGroupPoll = db.collection("groups").doc(group.id).collection("polls").doc(group.currentPollId)
+    unsubscribeGroupPoll = groupRef(group.id).collection("polls").doc(group.currentPollId)
       .collection("responses").onSnapshot((snap) => {
         // Le créateur lance le sondage — le fait de le lancer est déjà son
         // signal, inutile de compter aussi sa propre réponse.
@@ -1055,7 +1064,7 @@
   function subscribeMemberResponse(group) {
     if (unsubscribeGroupPoll) { unsubscribeGroupPoll(); unsubscribeGroupPoll = null; }
     const area = document.getElementById("member-poll-area");
-    unsubscribeGroupPoll = db.collection("groups").doc(group.id).collection("polls").doc(group.currentPollId)
+    unsubscribeGroupPoll = groupRef(group.id).collection("polls").doc(group.currentPollId)
       .collection("responses").doc(state.pseudo).onSnapshot((snap) => {
         if (snap.exists) {
           area.innerHTML = `<p class="poll-responded">✅ Tu as répondu à ce sondage</p>`;
