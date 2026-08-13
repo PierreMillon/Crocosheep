@@ -541,12 +541,8 @@
     if (looksAutomated(Date.now())) return; // clic ignoré sans un mot — voir looksAutomated()
 
     if (type !== "mouton") {
-      if ((state.stock[type] || 0) <= 0) {
-        showToast(`Plus de stock ${ANIMALS[type].label.toLowerCase()}`);
-        return;
-      }
+      if ((state.stock[type] || 0) <= 0) return; // le bouton est déjà censé avoir disparu à ce stade
       state.stock[type] -= 1;
-      if (state.stock[type] === 0) showToast(`Plus de stock ${ANIMALS[type].label.toLowerCase()}`);
     }
 
     state.sentTotals[type] += 1;
@@ -592,21 +588,42 @@
   // Envoyer un animal fait progresser vers le déblocage du palier suivant
   // (mouton → crocodile → lion → licorne → rhino). Chaque palier, une fois
   // débloqué, continue de gagner +1 en stock à chaque nouveau seuil atteint.
+  function grantUnlock(tier) {
+    if (!state.unlocked[tier]) {
+      state.unlocked[tier] = true;
+      state.stock[tier] += 2;
+      showToast(`${ANIMALS[tier].emoji} ${ANIMALS[tier].label} débloqué !`);
+    } else {
+      state.stock[tier] += 1; // gain silencieux, pas de popup à chaque fois — juste la pastille de stock qui monte
+    }
+  }
+
+  // Filet de secours : envoyer le palier juste en dessous reste la voie
+  // efficace (chaîne directe, seuil ~9-11), mais le volume de moutons
+  // envoyés dans la vie compte aussi, tout seul, pour débloquer n'importe
+  // quel palier — beaucoup moins bien (×8 plus dur par échelon sauté),
+  // pour ne jamais bloquer durablement quelqu'un qui n'a pas de chance sur
+  // la chaîne du dessus.
+  function moutonSafetyNetThreshold(tierIndex) {
+    return 10 * Math.pow(8, tierIndex - 1);
+  }
+
   function checkUnlock(sentType) {
     const idx = TIER_ORDER.indexOf(sentType);
     const nextTier = TIER_ORDER[idx + 1];
-    if (!nextTier) return; // rhino : rien de plus rare à débloquer
-
-    if (state.sentTotals[sentType] < state.nextThreshold[nextTier]) return;
-
-    if (!state.unlocked[nextTier]) {
-      state.unlocked[nextTier] = true;
-      state.stock[nextTier] += 2;
-      showToast(`${ANIMALS[nextTier].emoji} ${ANIMALS[nextTier].label} débloqué !`);
-    } else {
-      state.stock[nextTier] += 1; // gain silencieux, pas de popup à chaque fois — juste le pastille de stock qui monte
+    if (nextTier && !state.unlocked[nextTier] && state.sentTotals[sentType] >= state.nextThreshold[nextTier]) {
+      grantUnlock(nextTier);
+      state.nextThreshold[nextTier] = state.sentTotals[sentType] + randomThreshold();
     }
-    state.nextThreshold[nextTier] = state.sentTotals[sentType] + randomThreshold();
+
+    if (sentType === "mouton") {
+      TIER_ORDER.slice(2).forEach((tier) => { // lion, licorne, rhino — le crocodile est déjà 100% mouton
+        const tierIndex = TIER_ORDER.indexOf(tier);
+        if (!state.unlocked[tier] && state.sentTotals.mouton >= moutonSafetyNetThreshold(tierIndex)) {
+          grantUnlock(tier);
+        }
+      });
+    }
   }
 
   // Le bot répond après un petit délai (pour ne pas avoir l'air instantané
