@@ -26,26 +26,10 @@
       <ellipse cx="93" cy="29" rx="5" ry="3" fill="#1c1a17" transform="rotate(35 93 29)"/>
     </svg>`;
 
-  // Silhouette maison inspirée du logo crocodile envoyé par Pierre : corps
-  // vert foncé, contour vert (plus clair que le corps), œil noir gardé tel quel.
-  const CROCODILE_SVG = `
-    <svg viewBox="0 0 220 90" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Crocodile">
-      <ellipse cx="55" cy="76" rx="8" ry="6" fill="#173a1c"/>
-      <ellipse cx="75" cy="78" rx="8" ry="6" fill="#173a1c"/>
-      <ellipse cx="140" cy="76" rx="8" ry="6" fill="#173a1c"/>
-      <ellipse cx="160" cy="78" rx="8" ry="6" fill="#173a1c"/>
-      <path d="M8,62 C2,54 4,44 14,40 C10,32 16,24 26,24 C30,14 42,8 52,16
-               C58,8 70,8 76,18 C84,10 96,10 100,20 C110,12 122,14 126,24
-               C150,22 168,26 182,34 C198,40 210,44 214,50 C216,53 214,56 210,56
-               C202,54 196,52 190,54 C186,60 176,62 168,58 C160,64 148,64 142,58
-               C130,66 110,68 92,66 C76,72 56,74 40,70 C28,74 16,72 8,62 Z"
-            fill="#173a1c" stroke="#4da54f" stroke-width="3" stroke-linejoin="round"/>
-      <path d="M190,53 L196,60 L184,58 Z" fill="#f4ede0"/>
-      <path d="M178,56 L183,63 L172,60 Z" fill="#f4ede0"/>
-      <path d="M204,49 L210,55 L200,54 Z" fill="#f4ede0"/>
-      <circle cx="118" cy="20" r="9" fill="#f4ede0" stroke="#4da54f" stroke-width="2.5"/>
-      <ellipse cx="118" cy="20" rx="3.4" ry="6.5" fill="#1c1a17"/>
-    </svg>`;
+  // Vrai logo crocodile de Pierre (croco-real.png), recolorié par script :
+  // corps passé en vert foncé (#173a1c), contour vert d'origine gardé, œil
+  // noir gardé tel quel — remplace l'ancienne silhouette dessinée à la main.
+  const CROCODILE_IMG = `<img src="croco-real.png" alt="Crocodile" loading="lazy">`;
 
   const ANIMALS = {
     mouton:    { label: "Mouton",     color: "#f4ede0", tier: 0 },
@@ -58,7 +42,7 @@
     trex:      { label: "T-Rex",      color: "#4f5b2f", tier: 7, emoji: "🦖", price: "199,99 €" },
   };
   const TIER_ORDER = ["mouton", "crocodile", "lion", "licorne", "rhino", "dragon", "panda", "trex"];
-  const CUSTOM_SVG = { mouton: SHEEP_SVG, crocodile: CROCODILE_SVG };
+  const CUSTOM_SVG = { mouton: SHEEP_SVG, crocodile: CROCODILE_IMG };
 
   function iconMarkup(type) {
     return CUSTOM_SVG[type] ? CUSTOM_SVG[type] : `<span class="emoji">${ANIMALS[type].emoji}</span>`;
@@ -165,6 +149,17 @@
         if (!screens.profile.classList.contains("screen-hidden")) renderProfile();
       }, (e) => console.warn("Profil personnel indisponible", e));
     });
+  }
+
+  // Compteur "reçu" — jamais suivi jusqu'ici. Repose sur les deux
+  // écouteurs de messages entrants déjà en place (aperçu contacts + fil
+  // ouvert) ; limite connue : la toute première synchro d'un appareil tout
+  // neuf sur une identité déjà active peut recompter un historique déjà
+  // ancien une fois, faute d'un vrai curseur côté serveur.
+  function trackReceived(animal) {
+    state.receivedTotals[animal] = (state.receivedTotals[animal] || 0) + 1;
+    saveState();
+    syncStatsDelta(null, null, { [animal]: 1 });
   }
 
   /* ---------------------------------------------------------------
@@ -461,6 +456,7 @@
             if (!cached || cached.ts < last.ts) {
               c.history.push(last);
               saveState();
+              if (last.dir === "in") trackReceived(last.animal);
               renderContacts();
             }
           }, (err) => console.warn("Aperçu temps réel indisponible pour", c.code, err));
@@ -513,6 +509,19 @@
       list.appendChild(btn);
     });
 
+    const addContactBtn = document.createElement("button");
+    addContactBtn.className = "create-group-btn";
+    addContactBtn.textContent = "+ Ajouter un contact (avec son code)";
+    addContactBtn.addEventListener("click", () => {
+      const input = prompt("Code de la personne à ajouter (ex. W-867) :");
+      if (!input) return;
+      const code = input.trim().toUpperCase();
+      const added = addContactByCode(code);
+      if (added) { showToast(`${code} ajouté à tes contacts`); renderContacts(); }
+      else if (code === state.pseudo) showToast("C'est ton propre code !");
+    });
+    list.appendChild(addContactBtn);
+
     const createGroupBtn = document.createElement("button");
     createGroupBtn.className = "create-group-btn";
     createGroupBtn.textContent = "+ Créer un groupe";
@@ -523,6 +532,53 @@
   /* ---------------------------------------------------------------
    * Écran discussion
    * ------------------------------------------------------------- */
+  // Profil public d'un contact : envoyé / reçu / possédé, visible par
+  // n'importe qui (décision de Pierre — pas de garantie de confidentialité
+  // ici, l'effet vitrine prime). Lecture ponctuelle, pas de listener
+  // permanent — c'est une consultation, pas un fil qu'on regarde en continu.
+  let unsubscribePublicProfile = null;
+  function openPublicProfile(code) {
+    if (code === "🤖 Bot") return; // le bot n'a pas de profil Firestore, rien à montrer
+    document.getElementById("public-profile-title").textContent = `Profil de ${code}`;
+    const grid = document.getElementById("public-profile-grid");
+    grid.innerHTML = `<p class="group-waiting">Chargement…</p>`;
+    document.getElementById("public-profile-overlay").classList.remove("screen-hidden");
+
+    if (!FIREBASE_READY) {
+      grid.innerHTML = `<p class="group-waiting">Synchro non activée — profils publics indisponibles en mode démo local.</p>`;
+      return;
+    }
+    authReady.then((ok) => {
+      if (!ok) return;
+      if (unsubscribePublicProfile) unsubscribePublicProfile();
+      unsubscribePublicProfile = db.collection("profiles").doc(code).onSnapshot((snap) => {
+        if (!snap.exists) {
+          grid.innerHTML = `<p class="group-waiting">Rien à montrer pour l'instant — ${code} n'a encore rien envoyé ni reçu.</p>`;
+          return;
+        }
+        const d = snap.data();
+        grid.innerHTML = TIER_ORDER.map((type) => {
+          const sent = (d.sentTotals && d.sentTotals[type]) || 0;
+          const received = (d.receivedTotals && d.receivedTotals[type]) || 0;
+          const owned = type === "mouton" ? "∞" : ((d.stock && d.stock[type]) || 0);
+          return `
+            <div class="pp-card">
+              <span class="pp-icon">${iconMarkup(type)}</span>
+              <p class="pp-name">${ANIMALS[type].label}</p>
+              <div class="pp-stats">
+                <span><b>${sent}</b>envoyé</span>
+                <span><b>${received}</b>reçu</span>
+                <span><b>${owned}</b>en stock</span>
+              </div>
+            </div>`;
+        }).join("");
+      }, (e) => {
+        console.warn("Profil public indisponible pour", code, e);
+        grid.innerHTML = `<p class="group-waiting">Profil indisponible pour l'instant.</p>`;
+      });
+    });
+  }
+
   function openChat(contactId) {
     stopChatSubscription();
     stopContactPreviews();
@@ -544,12 +600,15 @@
       unsubscribeChat = db.collection("pairs").doc(pairId(state.pseudo, contact.code))
         .collection("messages").orderBy("ts", "asc")
         .onSnapshot((snap) => {
-          contact.history = snap.docs
+          const watermark = contact.history.reduce((max, m) => Math.max(max, m.ts || 0), 0);
+          const fresh = snap.docs
             .filter((d) => d.data().ts) // ignore les écritures locales pas encore confirmées, pour éviter les doublons
             .map((d) => {
               const m = d.data();
               return { dir: m.from === state.pseudo ? "out" : "in", animal: m.animal, ts: m.ts.toMillis() };
             });
+          fresh.filter((m) => m.dir === "in" && m.ts > watermark).forEach((m) => trackReceived(m.animal));
+          contact.history = fresh;
           saveState();
           if (activeContactId === contact.id) renderChatBubbles();
         }, (err) => {
@@ -905,9 +964,12 @@
     if (!group.currentPollId) { area.innerHTML = `<p class="group-waiting">Pas encore de sondage lancé.</p>`; return; }
     unsubscribeGroupPoll = db.collection("groups").doc(group.id).collection("polls").doc(group.currentPollId)
       .collection("responses").onSnapshot((snap) => {
-        const responded = snap.docs.map((d) => d.id);
-        const total = group.members.length;
-        const pending = group.members.filter((m) => !responded.includes(m));
+        // Le créateur lance le sondage — le fait de le lancer est déjà son
+        // signal, inutile de compter aussi sa propre réponse.
+        const voters = group.members.filter((m) => m !== group.creator);
+        const responded = snap.docs.map((d) => d.id).filter((m) => voters.includes(m));
+        const total = voters.length;
+        const pending = voters.filter((m) => !responded.includes(m));
         area.innerHTML = `
           <p class="poll-tally">${responded.length}/${total}</p>
           <p class="poll-tally-label">ont répondu</p>
@@ -969,12 +1031,15 @@
   // un tap "achète" un pack de 3, débloque le palier si besoin. C'est la
   // même mécanique que gagner via le clicker, juste instantanée.
   function buyAnimal(type) {
+    const wasLocked = !state.unlocked[type];
     state.unlocked[type] = true;
     state.stock[type] = (state.stock[type] || 0) + 3;
     saveState();
     renderProfile();
     if (screens.chat && !screens.chat.classList.contains("screen-hidden")) renderDock();
     showToast(`🎉 Achat simulé : +3 ${ANIMALS[type].label.toLowerCase()} (aucun vrai paiement)`);
+    syncStatsDelta({ [type]: 3 }, null, null);
+    if (wasLocked) syncUnlockState();
   }
 
   function renderShop() {
@@ -997,6 +1062,16 @@
    * Historique des versions
    * ------------------------------------------------------------- */
   const CHANGELOG = [
+    { version: "v8", date: "13 août 2026", changes: [
+      "Vrai logo crocodile de Pierre, recolorié automatiquement (corps vert foncé, contour et œil gardés)",
+      "3 animaux de plus : dragon, panda, T-Rex",
+      "Le mouton seul peut aussi débloquer n'importe quel palier, juste beaucoup moins efficacement que la chaîne directe",
+      "Profil public : tape sur le code d'un contact en discussion pour voir son palmarès envoyé/reçu/en stock",
+      "Stock et paliers synchronisés entre appareils partageant la même identité (ne dépendait que du stockage local avant)",
+      "Bouton \"+ Ajouter un contact\" par code, sans passer par un lien",
+      "Le créateur d'un sondage de groupe n'est plus compté parmi les votants attendus",
+      "Bulles de discussion : l'animation de démarrage ne rejoue plus sur les anciens messages à chaque envoi",
+    ]},
     { version: "v7", date: "13 août 2026", changes: [
       "Groupes : créer, inviter tes contacts, sondage muet lancé par le créateur, réponse en un tap (mouton) ou rien",
       "Boutique factice sur le profil (maquette visuelle, aucun vrai paiement)",
@@ -1157,6 +1232,15 @@
     changelogOverlay.classList.add("screen-hidden");
   });
 
+  document.getElementById("chat-code-btn").addEventListener("click", () => {
+    const code = document.getElementById("chat-code").textContent;
+    if (code && code !== "—") openPublicProfile(code);
+  });
+  document.getElementById("close-public-profile").addEventListener("click", () => {
+    document.getElementById("public-profile-overlay").classList.add("screen-hidden");
+    if (unsubscribePublicProfile) { unsubscribePublicProfile(); unsubscribePublicProfile = null; }
+  });
+
   // Horloge en direct au-dessus du dock d'envoi — la même horloge (calée
   // serveur) que celle utilisée par l'algorithme caché du seuil.
   function tickClock() {
@@ -1168,5 +1252,6 @@
 
   handleIncomingLink();
   subscribeContactPreviews();
+  subscribeOwnProfile();
   showScreen("contacts");
 })();

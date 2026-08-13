@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="favicon-16.png">
-<link rel="stylesheet" href="style.css?v=7">
+<link rel="stylesheet" href="style.css?v=8">
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
@@ -50,9 +50,9 @@
   <section id="screen-chat" class="screen screen-hidden" data-screen="chat">
     <header class="chat-header">
       <button id="back-to-contacts" class="icon-btn" aria-label="Retour aux contacts">←</button>
-      <div class="chat-header-id">
+      <button class="chat-header-id chat-header-id-btn" id="chat-code-btn" aria-label="Voir son profil">
         <span class="contact-code" id="chat-code">—</span>
-      </div>
+      </button>
       <span class="chat-header-spacer" aria-hidden="true"></span>
     </header>
 
@@ -103,6 +103,16 @@
     </div>
   </div>
 
+  <div id="public-profile-overlay" class="changelog-overlay screen-hidden">
+    <div class="changelog-panel">
+      <div class="changelog-head">
+        <h2 id="public-profile-title">Profil</h2>
+        <button id="close-public-profile" class="icon-btn" aria-label="Fermer">✕</button>
+      </div>
+      <div class="public-profile-grid" id="public-profile-grid"></div>
+    </div>
+  </div>
+
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
   <script src="firebase-config.js"></script>
@@ -111,6 +121,6 @@
        cache alors que index.html, lui, s'est mis à jour — mélange qui
        peut casser l'appli (ex. HTML récent + JS obsolète qui ne se
        correspondent plus). -->
-  <script src="script.js?v=7"></script>
+  <script src="script.js?v=8"></script>
 </body>
 </html>
