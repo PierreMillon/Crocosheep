@@ -31,6 +31,15 @@
   // noir gardé tel quel — remplace l'ancienne silhouette dessinée à la main.
   const CROCODILE_IMG = `<img src="croco-real.png" alt="Crocodile" loading="lazy">`;
 
+  // Icône du bouton "supprimer" révélé par balayage — pixel art repris du
+  // projet L1 math (licence-math/menu.js, SKULL_SVG). Deux versions y
+  // existent (une petite 7x8 pour un décompte de score, une détaillée
+  // 23x30 pour un bouton) ; comparées visuellement côte à côte à la
+  // taille réelle du bouton ici, la détaillée est nettement plus lisible
+  // (orbites et dents identifiables) alors que la petite reste une tache
+  // abstraite à cette taille — c'est donc celle-ci qui est reprise.
+  const SKULL_SVG = `<svg class="skull-icon" viewBox="0 0 23 30" shape-rendering="crispEdges" fill="currentColor" aria-hidden="true"><rect x="8" y="0" width="1" height="1"/><rect x="9" y="0" width="1" height="1"/><rect x="10" y="0" width="1" height="1"/><rect x="11" y="0" width="1" height="1"/><rect x="12" y="0" width="1" height="1"/><rect x="13" y="0" width="1" height="1"/><rect x="6" y="1" width="1" height="1"/><rect x="7" y="1" width="1" height="1"/><rect x="14" y="1" width="1" height="1"/><rect x="15" y="1" width="1" height="1"/><rect x="16" y="1" width="1" height="1"/><rect x="4" y="2" width="1" height="1"/><rect x="5" y="2" width="1" height="1"/><rect x="17" y="2" width="1" height="1"/><rect x="18" y="2" width="1" height="1"/><rect x="3" y="3" width="1" height="1"/><rect x="19" y="3" width="1" height="1"/><rect x="2" y="4" width="1" height="1"/><rect x="20" y="4" width="1" height="1"/><rect x="1" y="5" width="1" height="1"/><rect x="2" y="5" width="1" height="1"/><rect x="20" y="5" width="1" height="1"/><rect x="21" y="5" width="1" height="1"/><rect x="1" y="6" width="1" height="1"/><rect x="21" y="6" width="1" height="1"/><rect x="0" y="7" width="1" height="1"/><rect x="1" y="7" width="1" height="1"/><rect x="21" y="7" width="1" height="1"/><rect x="22" y="7" width="1" height="1"/><rect x="0" y="8" width="1" height="1"/><rect x="2" y="8" width="1" height="1"/><rect x="20" y="8" width="1" height="1"/><rect x="22" y="8" width="1" height="1"/><rect x="0" y="9" width="1" height="1"/><rect x="2" y="9" width="1" height="1"/><rect x="20" y="9" width="1" height="1"/><rect x="22" y="9" width="1" height="1"/><rect x="0" y="10" width="1" height="1"/><rect x="2" y="10" width="1" height="1"/><rect x="20" y="10" width="1" height="1"/><rect x="22" y="10" width="1" height="1"/><rect x="0" y="11" width="1" height="1"/><rect x="1" y="11" width="1" height="1"/><rect x="5" y="11" width="1" height="1"/><rect x="6" y="11" width="1" height="1"/><rect x="7" y="11" width="1" height="1"/><rect x="8" y="11" width="1" height="1"/><rect x="14" y="11" width="1" height="1"/><rect x="15" y="11" width="1" height="1"/><rect x="16" y="11" width="1" height="1"/><rect x="17" y="11" width="1" height="1"/><rect x="21" y="11" width="1" height="1"/><rect x="22" y="11" width="1" height="1"/><rect x="0" y="12" width="1" height="1"/><rect x="1" y="12" width="1" height="1"/><rect x="4" y="12" width="1" height="1"/><rect x="5" y="12" width="1" height="1"/><rect x="6" y="12" width="1" height="1"/><rect x="7" y="12" width="1" height="1"/><rect x="8" y="12" width="1" height="1"/><rect x="9" y="12" width="1" height="1"/><rect x="13" y="12" width="1" height="1"/><rect x="14" y="12" width="1" height="1"/><rect x="15" y="12" width="1" height="1"/><rect x="16" y="12" width="1" height="1"/><rect x="17" y="12" width="1" height="1"/><rect x="18" y="12" width="1" height="1"/><rect x="21" y="12" width="1" height="1"/><rect x="22" y="12" width="1" height="1"/><rect x="0" y="13" width="1" height="1"/><rect x="1" y="13" width="1" height="1"/><rect x="3" y="13" width="1" height="1"/><rect x="4" y="13" width="1" height="1"/><rect x="5" y="13" width="1" height="1"/><rect x="6" y="13" width="1" height="1"/><rect x="7" y="13" width="1" height="1"/><rect x="8" y="13" width="1" height="1"/><rect x="9" y="13" width="1" height="1"/><rect x="13" y="13" width="1" height="1"/><rect x="14" y="13" width="1" height="1"/><rect x="15" y="13" width="1" height="1"/><rect x="16" y="13" width="1" height="1"/><rect x="17" y="13" width="1" height="1"/><rect x="18" y="13" width="1" height="1"/><rect x="19" y="13" width="1" height="1"/><rect x="21" y="13" width="1" height="1"/><rect x="22" y="13" width="1" height="1"/><rect x="1" y="14" width="1" height="1"/><rect x="3" y="14" width="1" height="1"/><rect x="4" y="14" width="1" height="1"/><rect x="5" y="14" width="1" height="1"/><rect x="6" y="14" width="1" height="1"/><rect x="7" y="14" width="1" height="1"/><rect x="8" y="14" width="1" height="1"/><rect x="9" y="14" width="1" height="1"/><rect x="13" y="14" width="1" height="1"/><rect x="14" y="14" width="1" height="1"/><rect x="15" y="14" width="1" height="1"/><rect x="16" y="14" width="1" height="1"/><rect x="17" y="14" width="1" height="1"/><rect x="18" y="14" width="1" height="1"/><rect x="19" y="14" width="1" height="1"/><rect x="21" y="14" width="1" height="1"/><rect x="1" y="15" width="1" height="1"/><rect x="3" y="15" width="1" height="1"/><rect x="4" y="15" width="1" height="1"/><rect x="5" y="15" width="1" height="1"/><rect x="6" y="15" width="1" height="1"/><rect x="7" y="15" width="1" height="1"/><rect x="8" y="15" width="1" height="1"/><rect x="10" y="15" width="1" height="1"/><rect x="11" y="15" width="1" height="1"/><rect x="12" y="15" width="1" height="1"/><rect x="14" y="15" width="1" height="1"/><rect x="15" y="15" width="1" height="1"/><rect x="16" y="15" width="1" height="1"/><rect x="17" y="15" width="1" height="1"/><rect x="18" y="15" width="1" height="1"/><rect x="19" y="15" width="1" height="1"/><rect x="21" y="15" width="1" height="1"/><rect x="0" y="16" width="1" height="1"/><rect x="4" y="16" width="1" height="1"/><rect x="5" y="16" width="1" height="1"/><rect x="6" y="16" width="1" height="1"/><rect x="7" y="16" width="1" height="1"/><rect x="10" y="16" width="1" height="1"/><rect x="11" y="16" width="1" height="1"/><rect x="12" y="16" width="1" height="1"/><rect x="15" y="16" width="1" height="1"/><rect x="16" y="16" width="1" height="1"/><rect x="17" y="16" width="1" height="1"/><rect x="18" y="16" width="1" height="1"/><rect x="22" y="16" width="1" height="1"/><rect x="0" y="17" width="1" height="1"/><rect x="9" y="17" width="1" height="1"/><rect x="10" y="17" width="1" height="1"/><rect x="11" y="17" width="1" height="1"/><rect x="12" y="17" width="1" height="1"/><rect x="13" y="17" width="1" height="1"/><rect x="22" y="17" width="1" height="1"/><rect x="0" y="18" width="1" height="1"/><rect x="1" y="18" width="1" height="1"/><rect x="9" y="18" width="1" height="1"/><rect x="10" y="18" width="1" height="1"/><rect x="11" y="18" width="1" height="1"/><rect x="12" y="18" width="1" height="1"/><rect x="13" y="18" width="1" height="1"/><rect x="21" y="18" width="1" height="1"/><rect x="22" y="18" width="1" height="1"/><rect x="1" y="19" width="1" height="1"/><rect x="2" y="19" width="1" height="1"/><rect x="3" y="19" width="1" height="1"/><rect x="4" y="19" width="1" height="1"/><rect x="9" y="19" width="1" height="1"/><rect x="10" y="19" width="1" height="1"/><rect x="11" y="19" width="1" height="1"/><rect x="12" y="19" width="1" height="1"/><rect x="13" y="19" width="1" height="1"/><rect x="18" y="19" width="1" height="1"/><rect x="19" y="19" width="1" height="1"/><rect x="20" y="19" width="1" height="1"/><rect x="21" y="19" width="1" height="1"/><rect x="2" y="20" width="1" height="1"/><rect x="3" y="20" width="1" height="1"/><rect x="5" y="20" width="1" height="1"/><rect x="17" y="20" width="1" height="1"/><rect x="19" y="20" width="1" height="1"/><rect x="20" y="20" width="1" height="1"/><rect x="2" y="21" width="1" height="1"/><rect x="5" y="21" width="1" height="1"/><rect x="17" y="21" width="1" height="1"/><rect x="20" y="21" width="1" height="1"/><rect x="2" y="22" width="1" height="1"/><rect x="5" y="22" width="1" height="1"/><rect x="7" y="22" width="1" height="1"/><rect x="9" y="22" width="1" height="1"/><rect x="11" y="22" width="1" height="1"/><rect x="13" y="22" width="1" height="1"/><rect x="15" y="22" width="1" height="1"/><rect x="17" y="22" width="1" height="1"/><rect x="20" y="22" width="1" height="1"/><rect x="3" y="23" width="1" height="1"/><rect x="5" y="23" width="1" height="1"/><rect x="6" y="23" width="1" height="1"/><rect x="7" y="23" width="1" height="1"/><rect x="8" y="23" width="1" height="1"/><rect x="9" y="23" width="1" height="1"/><rect x="10" y="23" width="1" height="1"/><rect x="11" y="23" width="1" height="1"/><rect x="12" y="23" width="1" height="1"/><rect x="13" y="23" width="1" height="1"/><rect x="14" y="23" width="1" height="1"/><rect x="15" y="23" width="1" height="1"/><rect x="16" y="23" width="1" height="1"/><rect x="17" y="23" width="1" height="1"/><rect x="19" y="23" width="1" height="1"/><rect x="3" y="24" width="1" height="1"/><rect x="6" y="24" width="1" height="1"/><rect x="7" y="24" width="1" height="1"/><rect x="9" y="24" width="1" height="1"/><rect x="11" y="24" width="1" height="1"/><rect x="13" y="24" width="1" height="1"/><rect x="15" y="24" width="1" height="1"/><rect x="16" y="24" width="1" height="1"/><rect x="19" y="24" width="1" height="1"/><rect x="3" y="25" width="1" height="1"/><rect x="7" y="25" width="1" height="1"/><rect x="9" y="25" width="1" height="1"/><rect x="11" y="25" width="1" height="1"/><rect x="13" y="25" width="1" height="1"/><rect x="15" y="25" width="1" height="1"/><rect x="19" y="25" width="1" height="1"/><rect x="4" y="26" width="1" height="1"/><rect x="18" y="26" width="1" height="1"/><rect x="5" y="27" width="1" height="1"/><rect x="17" y="27" width="1" height="1"/><rect x="6" y="28" width="1" height="1"/><rect x="16" y="28" width="1" height="1"/><rect x="7" y="29" width="1" height="1"/><rect x="8" y="29" width="1" height="1"/><rect x="9" y="29" width="1" height="1"/><rect x="10" y="29" width="1" height="1"/><rect x="11" y="29" width="1" height="1"/><rect x="12" y="29" width="1" height="1"/><rect x="13" y="29" width="1" height="1"/><rect x="14" y="29" width="1" height="1"/><rect x="15" y="29" width="1" height="1"/></svg>`;
+
   const ANIMALS = {
     mouton:    { label: "Mouton",     color: "#f4ede0", tier: 0 },
     crocodile: { label: "Crocodile",  color: "#2f5233", tier: 1, emoji: "🐊", price: "0,99 €" },
@@ -606,8 +615,7 @@
       btn.innerHTML = `
         <p class="contact-code"><span class="group-tag">👥 Groupe</span> ${g.label || g.id}</p>
         <span class="contact-preview"><span>${memberCount} membre${memberCount > 1 ? "s" : ""}</span></span>`;
-      btn.addEventListener("click", () => openGroup(g.id));
-      list.appendChild(btn);
+      wireSwipeRow(list, btn, () => openGroup(g.id), () => leaveGroup(g.id), `Quitter le groupe ${g.label || g.id}`);
     });
 
     state.contacts.forEach((c) => {
@@ -629,29 +637,7 @@
         return;
       }
 
-      const row = document.createElement("div");
-      row.className = "contact-row";
-      row.dataset.swiped = "closed";
-
-      const delBtn = document.createElement("button");
-      delBtn.className = "contact-delete-btn";
-      delBtn.textContent = "💀";
-      delBtn.setAttribute("aria-label", `Supprimer la conversation avec ${c.code}`);
-      delBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        deleteContact(c.id);
-      });
-
-      btn.addEventListener("click", () => {
-        if (justSwiped) { justSwiped = false; return; }
-        if (row.dataset.swiped === "open") { closeSwipeRow(row); return; }
-        openChat(c.id);
-      });
-
-      row.appendChild(delBtn);
-      row.appendChild(btn);
-      wireSwipeToDelete(row, btn);
-      list.appendChild(row);
+      wireSwipeRow(list, btn, () => openChat(c.id), () => deleteContact(c.id), `Supprimer la conversation avec ${c.code}`);
     });
 
     const addContactBtn = document.createElement("button");
@@ -675,14 +661,28 @@
   }
 
   /* ---------------------------------------------------------------
-   * Suppression d'une conversation par balayage — supprime seulement de
-   * ta liste (le fil pairs/{pairId} et donc l'historique restent intacts
-   * côté Firestore) : l'autre personne garde sa conversation avec toi
-   * intacte, comme sur la plupart des apps de messagerie. Si elle
-   * t'écrit à nouveau ou que tu la rajoutes plus tard, l'historique
-   * complet réapparaît — cohérent avec le fonctionnement déjà en place
-   * (voir la discussion sur B-687 : le fil existe indépendamment de la
-   * liste de contacts locale).
+   * Suppression par balayage — conversations ET groupes.
+   * Contact : supprime seulement de ta liste (le fil pairs/{pairId} et
+   * donc l'historique restent intacts côté Firestore) : l'autre personne
+   * garde sa conversation avec toi intacte, comme sur la plupart des
+   * apps de messagerie. Si elle t'écrit à nouveau ou que tu la rajoutes
+   * plus tard, l'historique complet réapparaît — cohérent avec le
+   * fonctionnement déjà en place (voir la discussion sur B-687 : le fil
+   * existe indépendamment de la liste de contacts locale).
+   * Groupe : "supprimer" = quitter le groupe (retire ton pseudo de
+   * members) — la liste de groupes est une requête live sur ce champ,
+   * donc un simple retrait local n'aurait tenu qu'jusqu'au prochain
+   * snapshot.
+   *
+   * Implémentation en vrais Touch Events (pas Pointer Events) : sur iOS
+   * Safari, un balayage réel part rarement parfaitement à l'horizontale,
+   * et le navigateur peut annuler le suivi des pointer events avant que
+   * le code n'ait eu le temps de trancher "c'est un geste horizontal" —
+   * symptôme observé : rien ne se révèle, juste l'effet :active qui
+   * assombrit le bouton. Les Touch Events + preventDefault() explicite
+   * une fois la direction tranchée donnent un contrôle total du geste.
+   * La souris (desktop / tests) reste gérée en parallèle via Pointer
+   * Events, sans ce risque de conflit avec un scroll natif.
    * ------------------------------------------------------------- */
   const SWIPE_REVEAL = 84; // doit correspondre à la largeur de .contact-delete-btn en CSS
   let openSwipeRow = null;
@@ -697,40 +697,41 @@
   }
 
   function wireSwipeToDelete(row, itemBtn) {
-    let startX = null, startY = null, dragging = false, lockedHorizontal = false;
+    let startX = null, startY = null, dragging = false, lockedHorizontal = false, currentX = 0;
 
-    itemBtn.addEventListener("pointerdown", (e) => {
-      if (e.pointerType === "mouse" && e.button !== 0) return;
-      startX = e.clientX;
-      startY = e.clientY;
+    function begin(x, y) {
+      startX = x; startY = y;
       dragging = true;
       lockedHorizontal = false;
       itemBtn.style.transition = "none";
-    });
+    }
 
-    itemBtn.addEventListener("pointermove", (e) => {
+    function move(x, y, sourceEvent) {
       if (!dragging || startX == null) return;
-      const dx = e.clientX - startX;
-      const dy = e.clientY - startY;
+      const dx = x - startX;
+      const dy = y - startY;
       if (!lockedHorizontal) {
         if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return; // pas encore assez de mouvement pour trancher
         if (Math.abs(dy) > Math.abs(dx)) { dragging = false; return; } // c'est un scroll vertical, on laisse faire
         lockedHorizontal = true;
-        try { itemBtn.setPointerCapture(e.pointerId); } catch (err) { /* pas critique */ }
       }
+      if (sourceEvent && sourceEvent.cancelable) sourceEvent.preventDefault(); // on a pris la main sur le geste horizontal
       const base = row.dataset.swiped === "open" ? -SWIPE_REVEAL : 0;
-      const next = Math.min(0, Math.max(-SWIPE_REVEAL, base + dx));
-      itemBtn.style.transform = `translateX(${next}px)`;
-    });
+      // currentX suit la position en JS plutôt que de la relire via
+      // getComputedStyle() à la fin du geste : plus fiable — la lecture du
+      // style calculé juste après une rafale de mutations synchrones peut
+      // renvoyer une valeur pas encore à jour selon le navigateur.
+      currentX = Math.min(0, Math.max(-SWIPE_REVEAL, base + dx));
+      itemBtn.style.transform = `translateX(${currentX}px)`;
+    }
 
     function endDrag() {
       if (!dragging) return;
       dragging = false;
       itemBtn.style.transition = "";
       if (!lockedHorizontal) return;
-      justSwiped = true; // le click qui suit ce pointerup ne doit pas ouvrir la discussion
-      const m = new DOMMatrix(getComputedStyle(itemBtn).transform);
-      if (m.m41 < -SWIPE_REVEAL / 2) {
+      justSwiped = true; // le click qui suit ce relâchement ne doit pas ouvrir la discussion
+      if (currentX < -SWIPE_REVEAL / 2) {
         if (openSwipeRow && openSwipeRow !== row) closeSwipeRow(openSwipeRow);
         itemBtn.style.transform = `translateX(-${SWIPE_REVEAL}px)`;
         row.dataset.swiped = "open";
@@ -739,8 +740,30 @@
         closeSwipeRow(row);
       }
     }
-    itemBtn.addEventListener("pointerup", endDrag);
-    itemBtn.addEventListener("pointercancel", endDrag);
+
+    // Doigt (chemin principal, mobile) — preventDefault() nécessite un
+    // listener non-passif pour pouvoir désactiver le scroll natif.
+    itemBtn.addEventListener("touchstart", (e) => {
+      const t = e.touches[0];
+      if (t) begin(t.clientX, t.clientY);
+    }, { passive: true });
+    itemBtn.addEventListener("touchmove", (e) => {
+      const t = e.touches[0];
+      if (t) move(t.clientX, t.clientY, e);
+    }, { passive: false });
+    itemBtn.addEventListener("touchend", endDrag, { passive: true });
+    itemBtn.addEventListener("touchcancel", endDrag, { passive: true });
+
+    // Souris (desktop / tests) — pas de scroll natif à négocier ici.
+    itemBtn.addEventListener("pointerdown", (e) => {
+      if (e.pointerType !== "mouse" || e.button !== 0) return;
+      begin(e.clientX, e.clientY);
+    });
+    itemBtn.addEventListener("pointermove", (e) => {
+      if (e.pointerType === "mouse") move(e.clientX, e.clientY, null);
+    });
+    itemBtn.addEventListener("pointerup", (e) => { if (e.pointerType === "mouse") endDrag(); });
+    itemBtn.addEventListener("pointercancel", (e) => { if (e.pointerType === "mouse") endDrag(); });
   }
 
   // Toucher n'importe où ailleurs referme la ligne ouverte — évite de
@@ -748,6 +771,38 @@
   document.addEventListener("pointerdown", (e) => {
     if (openSwipeRow && !openSwipeRow.contains(e.target)) closeSwipeRow(openSwipeRow);
   });
+  document.addEventListener("touchstart", (e) => {
+    if (openSwipeRow && !openSwipeRow.contains(e.target)) closeSwipeRow(openSwipeRow);
+  }, { passive: true });
+
+  // Construit une ligne balayable (contact ou groupe) : itemBtn glisse
+  // par-dessus un bouton 💀 révélé en dessous. onOpen s'exécute au tap
+  // normal, onDelete au tap sur 💀 (supprime/quitte selon le contexte).
+  function wireSwipeRow(list, itemBtn, onOpen, onDelete, deleteAriaLabel) {
+    const row = document.createElement("div");
+    row.className = "contact-row";
+    row.dataset.swiped = "closed";
+
+    const delBtn = document.createElement("button");
+    delBtn.className = "contact-delete-btn";
+    delBtn.innerHTML = SKULL_SVG;
+    delBtn.setAttribute("aria-label", deleteAriaLabel);
+    delBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      onDelete();
+    });
+
+    itemBtn.addEventListener("click", () => {
+      if (justSwiped) { justSwiped = false; return; }
+      if (row.dataset.swiped === "open") { closeSwipeRow(row); return; }
+      onOpen();
+    });
+
+    row.appendChild(delBtn);
+    row.appendChild(itemBtn);
+    wireSwipeToDelete(row, itemBtn);
+    list.appendChild(row);
+  }
 
   function deleteContact(id) {
     const c = state.contacts.find((x) => x.id === id);
@@ -756,6 +811,16 @@
     stopContactPreviews();
     subscribeContactPreviews(); // réabonne sur la liste réduite et réaffiche
     if (c) showToast(`Conversation avec ${c.code} supprimée (juste chez toi)`);
+  }
+
+  function leaveGroup(groupId) {
+    const g = myGroups.find((x) => x.id === groupId);
+    withAuth(() => {
+      groupRef(groupId).update({
+        members: firebase.firestore.FieldValue.arrayRemove(state.pseudo),
+      }).then(() => showToast(`Groupe ${g ? (g.label || g.id) : ""} quitté`))
+        .catch((e) => { console.error(e); showToast("Impossible de quitter le groupe"); });
+    });
   }
 
   /* ---------------------------------------------------------------
@@ -1307,6 +1372,12 @@
    * Historique des versions
    * ------------------------------------------------------------- */
   const CHANGELOG = [
+    { version: "v13", date: "17 août 2026", changes: [
+      "Balayer pour supprimer ne marchait pas de manière fiable sur iPhone (rien ne se révélait) — corrigé en repassant sur de vrais événements tactiles",
+      "Balayer pour supprimer est maintenant aussi possible sur les groupes (= quitter le groupe)",
+      "Bouton supprimer : icône tête de mort dessinée (pixel art) à la place de l'emoji, fond noir, plus de liseré orange dans les coins",
+      "Balayer depuis le bord gauche pour revenir en arrière suit maintenant le doigt en direct avec une vraie animation, au lieu de sauter directement à l'écran précédent",
+    ]},
     { version: "v12", date: "17 août 2026", changes: [
       "Balayer une conversation vers la gauche pour la supprimer (💀) — juste chez toi, l'historique reste intact pour l'autre personne",
       "Balayer depuis le bord gauche de l'écran pour revenir en arrière, comme le geste natif iOS, en plus du bouton ←",
@@ -1567,6 +1638,10 @@
   /* ---------------------------------------------------------------
    * Retour par balayage depuis le bord gauche — en plus du bouton ←,
    * geste natif façon iOS sur les 3 écrans qui ont un retour possible.
+   * Suivi en direct du doigt (pas juste un déclenchement au seuil) :
+   * l'écran actuel glisse avec le doigt, l'écran contacts apparaît
+   * dessous avec un léger effet de parallaxe, et au relâchement soit ça
+   * termine en douceur (geste assez loin), soit ça revient à sa place.
    * ------------------------------------------------------------- */
   const BACK_BUTTON_BY_SCREEN = {
     chat: "back-to-contacts",
@@ -1574,27 +1649,92 @@
     profile: "back-to-contacts-from-profile",
   };
   const SWIPE_BACK_EDGE_ZONE = 24; // px depuis le bord où le geste doit démarrer
-  const SWIPE_BACK_THRESHOLD = 80; // px glissés pour valider le retour
-  let swipeBackStartX = null;
-  let swipeBackScreen = null;
+  const SWIPE_BACK_COMMIT_RATIO = 0.35; // fraction de la largeur d'écran à dépasser pour valider
+  const SWIPE_BACK_SETTLE_MS = 280;
+  let swipeBack = null; // { screenName, outgoing, target, width, startX, startY, lastX, locked }
+
+  function swipeBackScreenName() {
+    return Object.keys(BACK_BUTTON_BY_SCREEN).find((name) => !screens[name].classList.contains("screen-hidden"));
+  }
+
+  function lockSwipeBack(sb) {
+    sb.locked = true;
+    sb.outgoing = screens[sb.screenName];
+    sb.target = screens.contacts;
+    sb.width = sb.outgoing.getBoundingClientRect().width || window.innerWidth;
+    sb.outgoing.classList.add("swipe-live");
+    sb.target.classList.add("swipe-live");
+    sb.target.classList.remove("screen-hidden"); // révélé dessous pendant le geste, sans redéclencher sa vraie logique d'ouverture
+    sb.outgoing.style.transition = "none";
+    sb.target.style.transition = "none";
+  }
+
+  function updateSwipeBack(sb, dx) {
+    const progress = Math.min(1, Math.max(0, dx / sb.width));
+    sb.outgoing.style.transform = `translateX(${dx}px)`;
+    sb.target.style.transform = `translateX(${-25 + 25 * progress}%)`; // parallaxe : arrive de -25% vers 0%
+  }
+
+  function cleanupSwipeBack(outgoing, target, restoreHidden) {
+    [outgoing, target].forEach((el) => {
+      el.classList.remove("swipe-live");
+      el.style.transition = "";
+      el.style.transform = "";
+    });
+    if (restoreHidden) target.classList.add("screen-hidden");
+  }
+
+  function settleSwipeBack(sb, dx) {
+    const commit = dx > sb.width * SWIPE_BACK_COMMIT_RATIO;
+    sb.outgoing.style.transition = `transform ${SWIPE_BACK_SETTLE_MS}ms cubic-bezier(.22,.61,.36,1)`;
+    sb.target.style.transition = `transform ${SWIPE_BACK_SETTLE_MS}ms cubic-bezier(.22,.61,.36,1)`;
+    if (commit) {
+      sb.outgoing.style.transform = `translateX(${sb.width}px)`;
+      sb.target.style.transform = "translateX(0%)";
+      setTimeout(() => {
+        document.getElementById(BACK_BUTTON_BY_SCREEN[sb.screenName]).click(); // vraie logique de retour (désabonnements, etc.)
+        cleanupSwipeBack(sb.outgoing, sb.target, false);
+      }, SWIPE_BACK_SETTLE_MS);
+    } else {
+      sb.outgoing.style.transform = "translateX(0px)";
+      sb.target.style.transform = "translateX(-25%)";
+      setTimeout(() => cleanupSwipeBack(sb.outgoing, sb.target, true), SWIPE_BACK_SETTLE_MS);
+    }
+  }
 
   document.addEventListener("touchstart", (e) => {
     const t = e.touches[0];
-    if (!t || t.clientX > SWIPE_BACK_EDGE_ZONE) { swipeBackStartX = null; return; }
-    const current = Object.keys(BACK_BUTTON_BY_SCREEN).find((name) => !screens[name].classList.contains("screen-hidden"));
-    if (!current) { swipeBackStartX = null; return; }
-    swipeBackStartX = t.clientX;
-    swipeBackScreen = current;
+    if (!t || t.clientX > SWIPE_BACK_EDGE_ZONE) { swipeBack = null; return; }
+    const screenName = swipeBackScreenName();
+    if (!screenName) { swipeBack = null; return; }
+    swipeBack = { screenName, startX: t.clientX, startY: t.clientY, lastX: t.clientX, locked: false };
   }, { passive: true });
 
-  document.addEventListener("touchend", (e) => {
-    if (swipeBackStartX == null) return;
-    const t = e.changedTouches[0];
-    const dx = t ? t.clientX - swipeBackStartX : 0;
-    const screenAtEnd = swipeBackScreen;
-    swipeBackStartX = null;
-    swipeBackScreen = null;
-    if (dx > SWIPE_BACK_THRESHOLD) document.getElementById(BACK_BUTTON_BY_SCREEN[screenAtEnd]).click();
+  document.addEventListener("touchmove", (e) => {
+    if (!swipeBack) return;
+    const t = e.touches[0];
+    if (!t) return;
+    const dx = t.clientX - swipeBack.startX;
+    const dy = t.clientY - swipeBack.startY;
+    if (!swipeBack.locked) {
+      if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return; // pas encore assez de mouvement pour trancher
+      if (Math.abs(dy) > Math.abs(dx) || dx < 0) { swipeBack = null; return; } // vertical, ou vers la gauche : pas notre geste
+      lockSwipeBack(swipeBack);
+    }
+    swipeBack.lastX = t.clientX;
+    updateSwipeBack(swipeBack, Math.max(0, dx));
+    if (e.cancelable) e.preventDefault(); // on a la main sur le geste, plus la peine de scroller la page en dessous
+  }, { passive: false });
+
+  document.addEventListener("touchend", () => {
+    if (!swipeBack) return;
+    if (swipeBack.locked) settleSwipeBack(swipeBack, Math.max(0, swipeBack.lastX - swipeBack.startX));
+    swipeBack = null;
+  }, { passive: true });
+
+  document.addEventListener("touchcancel", () => {
+    if (swipeBack && swipeBack.locked) cleanupSwipeBack(swipeBack.outgoing, swipeBack.target, true);
+    swipeBack = null;
   }, { passive: true });
 
   // Réessai des compteurs stats non confirmés (voir syncStatsDelta) : au

@@ -73,6 +73,21 @@ body {
 
 .screen-hidden { display: none; }
 
+/* Pendant un balayage de retour depuis le bord (voir script.js), les deux
+   écrans concernés doivent pouvoir se superposer et glisser l'un sur
+   l'autre — sortis de la mise en page normale (centrage flex du body) le
+   temps du geste, replacés en fixed centré pour se chevaucher. */
+.screen.swipe-live {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  max-width: var(--max-w);
+  height: 100%;
+  margin: auto;
+  z-index: 20;
+}
+#screen-contacts.swipe-live { z-index: 19; }
+
 /* ===== Header commun ===== */
 .app-header, .chat-header {
   display: flex;
@@ -185,15 +200,26 @@ body {
   top: 0;
   right: 0;
   bottom: 0;
-  width: 84px;
+  /* 20px de plus que la zone révélée (84px, voir SWIPE_REVEAL en JS) :
+     .contact-item garde ses coins arrondis même glissé, donc son propre
+     coin arrondi retombe à l'intérieur de cette zone-là et laisserait
+     voir le fond orange derrière si ce bouton s'arrêtait pile à 84px.
+     padding-left compense pour que l'icône reste centrée sur la partie
+     réellement visible, pas sur toute la largeur du bouton. */
+  width: 104px;
+  padding-left: 20px;
   border: none;
-  background: #7a2e2e;
+  background: var(--sheep-ink);
   color: #fff;
-  font-size: 26px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
+}
+.contact-delete-btn svg {
+  width: 26px;
+  height: auto;
+  fill: currentColor;
 }
 
 .contact-avatar-big {
