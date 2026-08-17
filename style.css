@@ -241,6 +241,15 @@ body {
   margin: 0;
 }
 
+/* Code affiché en petit à côté du pseudo local (voir renameContact() dans
+   script.js) — le pseudo prend la place principale, le code reste visible
+   pour ne pas le perdre de vue. */
+.contact-code-sub {
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--muted);
+}
+
 .contact-preview {
   display: flex;
   align-items: center;

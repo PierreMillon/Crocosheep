@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="favicon-16.png">
-<link rel="stylesheet" href="style.css?v=14">
+<link rel="stylesheet" href="style.css?v=15">
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
@@ -111,6 +111,7 @@
         <h2 id="public-profile-title">Profil</h2>
         <button id="close-public-profile" class="icon-btn" aria-label="Fermer">✕</button>
       </div>
+      <button id="rename-contact-btn" class="edit-code-link" style="display:block; margin:0 auto 14px;">✏️ Renommer ce contact</button>
       <div class="public-profile-grid" id="public-profile-grid"></div>
     </div>
   </div>
@@ -123,6 +124,6 @@
        cache alors que index.html, lui, s'est mis à jour — mélange qui
        peut casser l'appli (ex. HTML récent + JS obsolète qui ne se
        correspondent plus). -->
-  <script src="script.js?v=17"></script>
+  <script src="script.js?v=18"></script>
 </body>
 </html>

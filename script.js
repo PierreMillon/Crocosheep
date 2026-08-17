@@ -623,7 +623,7 @@
       const btn = document.createElement("button");
       btn.className = "contact-item";
       btn.innerHTML = `
-        <p class="contact-code">${c.code}</p>
+        <p class="contact-code">${c.nickname || c.code}${c.nickname ? `<span class="contact-code-sub"> · ${c.code}</span>` : ""}</p>
         <span class="contact-preview">
           ${last
             ? `<span class="contact-preview-icon">${iconMarkup(last.animal)}</span><span>${exactTime(last.ts)}</span>`
@@ -813,6 +813,29 @@
     if (c) showToast(`Conversation avec ${c.code} supprimée chez toi — encore visible pour ton contact, l'historique revient si tu le rajoutes`);
   }
 
+  // Pseudo local sur un contact — purement pour toi : jamais envoyé à
+  // Firestore, jamais vu par l'autre personne. Remplace l'affichage du
+  // code dans la liste de contacts et l'en-tête de discussion ; le code
+  // réel reste utilisé partout où il compte (Firestore, profil public)
+  // et reste consultable (sous le pseudo dans la liste, et le profil
+  // public l'affiche toujours dans son titre entre parenthèses).
+  function renameContact(code) {
+    const c = state.contacts.find((x) => x.code === code);
+    if (!c) return;
+    const input = prompt(`Comment veux-tu appeler ${code} ? (laisse vide pour revenir au code)`, c.nickname || "");
+    if (input === null) return; // annulé
+    const nickname = input.trim();
+    c.nickname = nickname || null;
+    saveState();
+    renderContacts();
+    if (activeContactId === c.id) {
+      const chatCodeEl = document.getElementById("chat-code");
+      chatCodeEl.textContent = c.nickname || c.code;
+    }
+    document.getElementById("public-profile-title").textContent = `Profil de ${c.nickname || c.code}`;
+    showToast(c.nickname ? `Renommé en "${c.nickname}" (juste chez toi)` : `Retour au code ${c.code}`);
+  }
+
   function leaveGroup(groupId) {
     const g = myGroups.find((x) => x.id === groupId);
     withAuth(() => {
@@ -831,9 +854,12 @@
   // ici, l'effet vitrine prime). Lecture ponctuelle, pas de listener
   // permanent — c'est une consultation, pas un fil qu'on regarde en continu.
   let unsubscribePublicProfile = null;
+  let currentPublicProfileCode = null; // pour que le bouton "Renommer" sache sur quel contact agir
   function openPublicProfile(code) {
     if (code === "🤖 Bot") return; // le bot n'a pas de profil Firestore, rien à montrer
-    document.getElementById("public-profile-title").textContent = `Profil de ${code}`;
+    currentPublicProfileCode = code;
+    const contact = state.contacts.find((x) => x.code === code);
+    document.getElementById("public-profile-title").textContent = `Profil de ${(contact && contact.nickname) || code}`;
     const grid = document.getElementById("public-profile-grid");
     grid.innerHTML = `<p class="group-waiting">Chargement…</p>`;
     document.getElementById("public-profile-overlay").classList.remove("screen-hidden");
@@ -878,7 +904,9 @@
     stopGroupScreen();
     activeContactId = contactId;
     const c = state.contacts.find((x) => x.id === contactId);
-    document.getElementById("chat-code").textContent = c.code;
+    const chatCodeEl = document.getElementById("chat-code");
+    chatCodeEl.textContent = c.nickname || c.code;
+    chatCodeEl.dataset.code = c.code; // le pseudo local peut remplacer l'affichage, mais le vrai code reste nécessaire pour le profil public/Firestore
     renderChatBubbles(); // affichage immédiat depuis le cache local, pas d'écran vide en attendant le réseau
     renderDock();
     showScreen("chat");
@@ -1372,6 +1400,9 @@
    * Historique des versions
    * ------------------------------------------------------------- */
   const CHANGELOG = [
+    { version: "v14", date: "17 août 2026", changes: [
+      "Pseudo local sur un contact : tape sur son code en discussion → \"Renommer ce contact\" pour lui donner un petit nom (juste pour toi, jamais envoyé nulle part, le code reste visible en dessous)",
+    ]},
     { version: "v13", date: "17 août 2026", changes: [
       "Balayer pour supprimer ne marchait pas de manière fiable sur iPhone (rien ne se révélait) — corrigé en repassant sur de vrais événements tactiles",
       "Balayer pour supprimer est maintenant aussi possible sur les groupes (= quitter le groupe)",
@@ -1622,12 +1653,17 @@
   });
 
   document.getElementById("chat-code-btn").addEventListener("click", () => {
-    const code = document.getElementById("chat-code").textContent;
+    const el = document.getElementById("chat-code");
+    const code = el.dataset.code || el.textContent;
     if (code && code !== "—") openPublicProfile(code);
   });
   document.getElementById("close-public-profile").addEventListener("click", () => {
     document.getElementById("public-profile-overlay").classList.add("screen-hidden");
     if (unsubscribePublicProfile) { unsubscribePublicProfile(); unsubscribePublicProfile = null; }
+  });
+  document.getElementById("rename-contact-btn").addEventListener("click", () => {
+    if (!currentPublicProfileCode) return;
+    renameContact(currentPublicProfileCode);
   });
 
   // Horloge en direct au-dessus du dock d'envoi — la même horloge (calée
