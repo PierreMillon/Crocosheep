@@ -810,7 +810,7 @@
     saveState();
     stopContactPreviews();
     subscribeContactPreviews(); // réabonne sur la liste réduite et réaffiche
-    if (c) showToast(`Conversation avec ${c.code} supprimée (juste chez toi)`);
+    if (c) showToast(`Conversation avec ${c.code} supprimée chez toi — encore visible pour elle, l'historique revient si tu la rajoutes`);
   }
 
   function leaveGroup(groupId) {
@@ -1468,7 +1468,11 @@
     el.textContent = message;
     el.classList.add("visible");
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => el.classList.remove("visible"), 2200);
+    // Durée proportionnelle à la longueur du message : un texte court
+    // ("ajouté aux contacts") reste à 2.2s, un texte plus long et
+    // explicatif (ex. la confirmation de suppression) a le temps d'être lu.
+    const duration = Math.min(5000, 2200 + Math.max(0, message.length - 30) * 40);
+    toastTimer = setTimeout(() => el.classList.remove("visible"), duration);
   }
 
   /* ---------------------------------------------------------------
