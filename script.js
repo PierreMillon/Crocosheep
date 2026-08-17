@@ -564,7 +564,7 @@
             if (snap.empty) return;
             const m = snap.docs[0].data();
             if (!m.ts) return; // écriture pas encore confirmée par le serveur
-            const last = { dir: m.from === state.pseudo ? "out" : "in", animal: m.animal, ts: m.ts.toMillis() };
+            const last = { dir: m.from === state.pseudo ? "out" : "in", animal: m.animal, ts: m.clientTs != null ? m.clientTs : m.ts.toMillis() };
             const cached = c.history[c.history.length - 1];
             if (!cached || cached.ts < last.ts) {
               c.history.push(last);
@@ -723,7 +723,14 @@
             .filter((d) => d.data().ts) // ignore les écritures locales pas encore confirmées, pour éviter les doublons
             .map((d) => {
               const m = d.data();
-              return { dir: m.from === state.pseudo ? "out" : "in", animal: m.animal, ts: m.ts.toMillis() };
+              // clientTs (l'horloge calée serveur au moment du clic, voir sendAnimal) est
+              // affiché de préférence à m.ts.toMillis() : le serverTimestamp() de Firestore
+              // n'est figé qu'à la confirmation d'écriture, quelques centaines de ms à
+              // plus d'une seconde après le clic — assez pour afficher "+1 seconde" par
+              // rapport à l'heure réelle d'envoi. ts (Firestore) reste la source de tri
+              // et de déduplication, inchangée, pour ne rien casser sur les messages déjà
+              // en base sans clientTs.
+              return { dir: m.from === state.pseudo ? "out" : "in", animal: m.animal, ts: m.clientTs != null ? m.clientTs : m.ts.toMillis() };
             });
           fresh.filter((m) => m.dir === "in" && m.ts > watermark).forEach((m) => trackReceived(m.animal));
           contact.history = fresh;
@@ -828,7 +835,8 @@
         return threadRef(state.pseudo, c.code).add({
             from: state.pseudo,
             animal: type,
-            ts: firebase.firestore.FieldValue.serverTimestamp(),
+            ts: firebase.firestore.FieldValue.serverTimestamp(), // source de tri/dédup, inchangée
+            clientTs: now(), // horloge calée serveur au moment du clic — voir plus haut pourquoi c'est ça qui s'affiche
           });
         // La bulle s'affiche via l'écouteur onSnapshot de subscribeToThread
         // dès que Firestore confirme l'écriture — quasi instantané.
