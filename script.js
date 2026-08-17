@@ -810,7 +810,7 @@
     saveState();
     stopContactPreviews();
     subscribeContactPreviews(); // réabonne sur la liste réduite et réaffiche
-    if (c) showToast(`Conversation avec ${c.code} supprimée chez toi — encore visible pour elle, l'historique revient si tu la rajoutes`);
+    if (c) showToast(`Conversation avec ${c.code} supprimée chez toi — encore visible pour ton contact, l'historique revient si tu le rajoutes`);
   }
 
   function leaveGroup(groupId) {
