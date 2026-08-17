@@ -122,18 +122,61 @@
    * envois quasi simultanés sur deux appareils s'additionnent au lieu
    * de s'écraser l'un l'autre. Un onSnapshot permanent sur son propre
    * profil ramène ensuite tout appareil au même état.
+   *
+   * Fiabilité : contrairement à l'envoi d'un message (qui a un repli
+   * local + toast si Firestore est injoignable), un increment() raté
+   * ici était jusqu'ici perdu pour toujours — juste un console.warn,
+   * jamais réessayé. Symptôme observé : un contact envoie bien son
+   * animal (visible dans la discussion), mais son profil public reste
+   * bloqué à 0 parce que ce deuxième écrit-là a échoué en silence.
+   * Fix : chaque delta passe d'abord par une file locale persistée
+   * (state.pendingStatsSync), et flushPendingStatsSync() réessaie tant
+   * qu'elle n'est pas vide — au retour du réseau, à intervalle
+   * régulier, et à chaque nouvel envoi.
    * ------------------------------------------------------------- */
   function syncStatsDelta(stockDelta, sentDelta, receivedDelta) {
     if (!FIREBASE_READY) return;
-    withAuth(() => {
-      const updates = {};
-      Object.entries(stockDelta || {}).forEach(([k, v]) => { updates[`stock.${k}`] = firebase.firestore.FieldValue.increment(v); });
-      Object.entries(sentDelta || {}).forEach(([k, v]) => { updates[`sentTotals.${k}`] = firebase.firestore.FieldValue.increment(v); });
-      Object.entries(receivedDelta || {}).forEach(([k, v]) => { updates[`receivedTotals.${k}`] = firebase.firestore.FieldValue.increment(v); });
-      if (!Object.keys(updates).length) return;
-      profileRef(state.pseudo).set(updates, { merge: true })
-        .catch((e) => console.warn("Synchro stats impossible", e));
+    const delta = {};
+    Object.entries(stockDelta || {}).forEach(([k, v]) => { delta[`stock.${k}`] = v; });
+    Object.entries(sentDelta || {}).forEach(([k, v]) => { delta[`sentTotals.${k}`] = v; });
+    Object.entries(receivedDelta || {}).forEach(([k, v]) => { delta[`receivedTotals.${k}`] = v; });
+    if (!Object.keys(delta).length) return;
+    state.pendingStatsSync.push(delta);
+    saveState();
+    flushPendingStatsSync();
+  }
+
+  // Additionne toutes les entrées en attente en un seul objet — un increment
+  // de +1 puis -1 sur le même champ s'annule avant même de partir sur le
+  // réseau, et ça ne fait qu'une seule écriture Firestore quel que soit le
+  // nombre de deltas accumulés pendant une coupure.
+  function combineDeltas(list) {
+    const combined = {};
+    list.forEach((entry) => {
+      Object.entries(entry).forEach(([field, v]) => { combined[field] = (combined[field] || 0) + v; });
     });
+    return combined;
+  }
+
+  let statsSyncInFlight = false;
+  function flushPendingStatsSync() {
+    if (!FIREBASE_READY || statsSyncInFlight || !state.pendingStatsSync.length) return;
+    statsSyncInFlight = true;
+    const batch = state.pendingStatsSync.slice(); // photo de ce qu'on tente là — d'autres deltas peuvent s'ajouter pendant l'écriture
+    authReady.then((ok) => {
+      // Même logique que sendAnimal : un échec d'auth doit tomber dans le
+      // même .catch() qu'un échec d'écriture, pour réessayer pareil aux deux.
+      if (!ok) throw new Error("auth indisponible");
+      const combined = combineDeltas(batch);
+      const updates = {};
+      Object.entries(combined).forEach(([field, v]) => { updates[field] = firebase.firestore.FieldValue.increment(v); });
+      return profileRef(state.pseudo).set(updates, { merge: true });
+    }).then(() => {
+      state.pendingStatsSync.splice(0, batch.length); // ne retire que ce qui vient d'être confirmé, pas ce qui s'est ajouté entre-temps
+      saveState();
+    }).catch((e) => {
+      console.warn("Synchro stats impossible, nouvelle tentative plus tard", e);
+    }).finally(() => { statsSyncInFlight = false; });
   }
 
   // unlocked/nextThreshold sont un état, pas des compteurs — un simple
@@ -374,6 +417,7 @@
       unlocked,
       nextThreshold,
       contacts: seedContacts(),
+      pendingStatsSync: [], // deltas stock/sentTotals/receivedTotals pas encore confirmés par Firestore — voir flushPendingStatsSync()
     };
   }
 
@@ -394,6 +438,7 @@
     s.stock = { ...zeroStock(), ...s.stock };
     s.sentTotals = { ...zeroPerTier(), ...s.sentTotals };
     s.receivedTotals = { ...zeroPerTier(), ...s.receivedTotals };
+    if (!Array.isArray(s.pendingStatsSync)) s.pendingStatsSync = []; // comptes déjà en test avant l'ajout de la file de réessai
     if (!s.recoveryKey) s.recoveryKey = randomRecoveryKey(); // comptes déjà en test avant l'ajout de cette clé
     if (!s.contacts.some((c) => c.id === "bot")) s.contacts.unshift(botContact()); // comptes déjà en test avant l'ajout du bot
     return s;
@@ -1141,6 +1186,10 @@
    * Historique des versions
    * ------------------------------------------------------------- */
   const CHANGELOG = [
+    { version: "v11", date: "17 août 2026", changes: [
+      "Notifications réparées sur iPhone : passaient par un appel que iOS ignore silencieusement, corrigé via un service worker",
+      "Compteurs du profil public (envoyé/reçu/en stock) plus fiables : un raté réseau ne les fait plus rester bloqués pour toujours, réessai automatique jusqu'à confirmation",
+    ]},
     { version: "v10", date: "13 août 2026", changes: [
       "Notifications (mouton reçu, invitation de groupe, sondage lancé) tant que l'appli est ouverte quelque part — vraie notif app fermée demanderait un compte Firebase payant, pas activé",
     ]},
@@ -1233,12 +1282,31 @@
    * Messaging + Service Worker + Cloud Function, ce qui impose de
    * passer le projet Firebase en facturation payante (plan Blaze) —
    * décision financière qu'on laisse à Pierre, pas prise ici.
+   *
+   * new Notification(...) appelé directement depuis la page ne marche
+   * pas sur iOS Safari (silencieusement ignoré même permission accordée
+   * — c'était la cause du "ça marche pas" sur iPhone) : seule une
+   * notification déclenchée via un service worker enregistré (sw.js)
+   * s'affiche vraiment là-bas. On enregistre ce service worker au
+   * démarrage et on préfère ce chemin dès qu'il est prêt ; sinon on
+   * retombe sur l'ancien appel direct (marche très bien sur desktop).
    * ------------------------------------------------------------- */
+  let swRegistration = null;
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("sw.js")
+      .then((reg) => { swRegistration = reg; })
+      .catch((e) => console.warn("Service worker (notifications) indisponible", e));
+  }
   function notify(title, body) {
     if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
     if (!document.hidden) return; // on est déjà en train de regarder l'appli, pas la peine
+    const opts = { body, icon: "apple-touch-icon.png" };
+    if (swRegistration) {
+      swRegistration.showNotification(title, opts).catch((e) => console.warn("Notification (service worker) impossible", e));
+      return;
+    }
     try {
-      new Notification(title, { body, icon: "apple-touch-icon.png" });
+      new Notification(title, opts);
     } catch (e) { /* certains navigateurs mobiles n'aiment pas new Notification() direct, tant pis */ }
   }
 
@@ -1369,6 +1437,15 @@
   }
   tickClock();
   setInterval(tickClock, 1000);
+
+  // Réessai des compteurs stats non confirmés (voir syncStatsDelta) : au
+  // retour du réseau, et en filet de sécurité toutes les 15s tant qu'il en
+  // reste — flushPendingStatsSync() ne fait rien si la file est vide ou
+  // qu'une tentative est déjà en cours, donc ce ping régulier ne coûte rien
+  // la plupart du temps.
+  window.addEventListener("online", flushPendingStatsSync);
+  setInterval(flushPendingStatsSync, 15000);
+  flushPendingStatsSync(); // reprend une file laissée en attente par une session précédente (onglet fermé avant confirmation)
 
   handleIncomingLink();
   subscribeContactPreviews();

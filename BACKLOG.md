@@ -56,6 +56,8 @@ Format : `[ ]` à faire · `[~]` en cours · `[x]` fait (avec commit si applicab
 - `[x]` **Régression critique** : le stock ne se régénérait plus après un premier déblocage (condition de trop dans `checkUnlock` après extraction de `grantUnlock`) — repéré par Pierre après 435 moutons envoyés, corrigé et vérifié
 - `[x]` Règles Firestore manquantes pour `groups`/`_clock`/`profiles` → bouton "créer un groupe" ne faisait rien silencieusement
 - `[x]` Cache navigateur pouvait servir un `script.js` périmé avec un `index.html` à jour → cache-busting `?v=N` ajouté, à incrémenter à chaque déploiement
+- `[x]` **Notifications inactives sur iPhone** : `new Notification(...)` appelé directement depuis la page est silencieusement ignoré par iOS Safari, même permission accordée. Corrigé en ajoutant un vrai service worker (`sw.js`) et en passant par `registration.showNotification()` — c'est le seul chemin qu'iOS honore. Testé : le service worker s'enregistre et s'active correctement (vérifié en conditions réelles via un serveur local, `file://` ne permettant pas ce test). Limite restant côté iOS, pas contournable : ça ne marche que si l'appli a été ajoutée à l'écran d'accueil (pas dans un simple onglet Safari), sur iOS 16.4+.
+- `[x]` **Profil public qui ne se mettait pas à jour** (repéré sur le contact B-687 : crocodile+mouton envoyés visibles dans la discussion, mais palmarès public resté à 0/0/0) : l'écriture du message et celle du compteur agrégé (`profiles/{pseudo}.sentTotals`) sont deux opérations Firestore séparées ; la deuxième n'avait aucun filet de rattrapage — un raté réseau la perdait pour toujours, en silence. Corrigé par une file d'attente locale (`state.pendingStatsSync`) avec réessai automatique (retour réseau, toutes les 15s, et à la reprise d'une session interrompue) tant que l'écriture n'est pas confirmée. Vérifié par test automatisé (échec simulé puis confirmation après "retour réseau").
 
 ### Autre
 - `[x]` Refactoring : extraction de `withAuth()` (remplace ~15 répétitions du même bloc d'authentification Firestore) et de raccourcis `threadRef`/`profileRef`/`groupRef` — aucun changement de comportement, suite de tests complète avant/après
@@ -63,4 +65,4 @@ Format : `[ ]` à faire · `[~]` en cours · `[x]` fait (avec commit si applicab
 
 ---
 
-*Dernière mise à jour : session du 13 août 2026.*
+*Dernière mise à jour : session du 17 août 2026.*
