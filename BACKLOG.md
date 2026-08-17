@@ -35,7 +35,9 @@ Format : `[ ]` à faire · `[~]` en cours · `[x]` fait (avec commit si applicab
 - `[x]` 3 animaux supplémentaires : dragon, panda, T-Rex (après rhinocéros)
 - `[x]` Crocodile en vraie illustration (logo de Pierre, récupéré via upload GitHub direct, recolorié par script : corps vert foncé, contour et œil gardés)
 
-### Interface (v6, v7, v8)
+### Interface (v6, v7, v8, v12)
+- `[x]` Balayer une conversation vers la gauche → bouton supprimer (💀). Choix fait et expliqué à Pierre : suppression **seulement chez soi** (comme WhatsApp/iMessage), pas pour les deux — le fil Firestore et l'historique de l'autre personne restent intacts ; si elle réécrit ou qu'on la rajoute plus tard, l'historique complet réapparaît (cohérent avec le fonctionnement déjà établi sur B-687). Le bot de démo n'est pas supprimable (toujours disponible par design).
+- `[x]` Balayer depuis le bord gauche de l'écran pour revenir en arrière (geste natif iOS), en plus du bouton ← existant — actif sur discussion/groupe/profil
 - `[x]` Bouton mouton plein largeur qui se divise en bandes horizontales égales au fil des déblocages ; animaux verrouillés ou à stock épuisé invisibles (pas de cadenas/bouton mort)
 - `[x]` Bouton mouton agrandi, fond gris (contraste avec le mouton blanc/noir)
 - `[x]` Heure exacte (HH:MM:SS) sous chaque message, horloge en direct au-dessus des boutons d'envoi

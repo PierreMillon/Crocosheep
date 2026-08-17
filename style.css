@@ -166,6 +166,36 @@ body {
 
 .contact-item:active { transform: scale(0.98); }
 
+/* Balayage vers la gauche pour supprimer une conversation (juste chez soi,
+   voir deleteContact() dans script.js) : .contact-item glisse par-dessus
+   .contact-delete-btn révélé en dessous. */
+.contact-row {
+  position: relative;
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.contact-row .contact-item {
+  position: relative;
+  z-index: 1;
+  transition: transform 0.18s ease;
+  touch-action: pan-y;
+}
+.contact-delete-btn {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 84px;
+  border: none;
+  background: #7a2e2e;
+  color: #fff;
+  font-size: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
 .contact-avatar-big {
   width: 72px;
   height: 72px;

@@ -621,8 +621,37 @@
             ? `<span class="contact-preview-icon">${iconMarkup(last.animal)}</span><span>${exactTime(last.ts)}</span>`
             : "<span>Aucun échange pour l'instant</span>"}
         </span>`;
-      btn.addEventListener("click", () => openChat(c.id));
-      list.appendChild(btn);
+
+      if (c.bot) {
+        // Le bot de démo reste toujours disponible, pas de suppression possible.
+        btn.addEventListener("click", () => openChat(c.id));
+        list.appendChild(btn);
+        return;
+      }
+
+      const row = document.createElement("div");
+      row.className = "contact-row";
+      row.dataset.swiped = "closed";
+
+      const delBtn = document.createElement("button");
+      delBtn.className = "contact-delete-btn";
+      delBtn.textContent = "💀";
+      delBtn.setAttribute("aria-label", `Supprimer la conversation avec ${c.code}`);
+      delBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        deleteContact(c.id);
+      });
+
+      btn.addEventListener("click", () => {
+        if (justSwiped) { justSwiped = false; return; }
+        if (row.dataset.swiped === "open") { closeSwipeRow(row); return; }
+        openChat(c.id);
+      });
+
+      row.appendChild(delBtn);
+      row.appendChild(btn);
+      wireSwipeToDelete(row, btn);
+      list.appendChild(row);
     });
 
     const addContactBtn = document.createElement("button");
@@ -643,6 +672,90 @@
     createGroupBtn.textContent = "+ Créer un groupe";
     createGroupBtn.addEventListener("click", createGroup);
     list.appendChild(createGroupBtn);
+  }
+
+  /* ---------------------------------------------------------------
+   * Suppression d'une conversation par balayage — supprime seulement de
+   * ta liste (le fil pairs/{pairId} et donc l'historique restent intacts
+   * côté Firestore) : l'autre personne garde sa conversation avec toi
+   * intacte, comme sur la plupart des apps de messagerie. Si elle
+   * t'écrit à nouveau ou que tu la rajoutes plus tard, l'historique
+   * complet réapparaît — cohérent avec le fonctionnement déjà en place
+   * (voir la discussion sur B-687 : le fil existe indépendamment de la
+   * liste de contacts locale).
+   * ------------------------------------------------------------- */
+  const SWIPE_REVEAL = 84; // doit correspondre à la largeur de .contact-delete-btn en CSS
+  let openSwipeRow = null;
+  let justSwiped = false; // un seul balayage à la fois possible, pas besoin d'un flag par ligne
+
+  function closeSwipeRow(row) {
+    if (!row) return;
+    const item = row.querySelector(".contact-item");
+    if (item) item.style.transform = "translateX(0)";
+    row.dataset.swiped = "closed";
+    if (openSwipeRow === row) openSwipeRow = null;
+  }
+
+  function wireSwipeToDelete(row, itemBtn) {
+    let startX = null, startY = null, dragging = false, lockedHorizontal = false;
+
+    itemBtn.addEventListener("pointerdown", (e) => {
+      if (e.pointerType === "mouse" && e.button !== 0) return;
+      startX = e.clientX;
+      startY = e.clientY;
+      dragging = true;
+      lockedHorizontal = false;
+      itemBtn.style.transition = "none";
+    });
+
+    itemBtn.addEventListener("pointermove", (e) => {
+      if (!dragging || startX == null) return;
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      if (!lockedHorizontal) {
+        if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return; // pas encore assez de mouvement pour trancher
+        if (Math.abs(dy) > Math.abs(dx)) { dragging = false; return; } // c'est un scroll vertical, on laisse faire
+        lockedHorizontal = true;
+        try { itemBtn.setPointerCapture(e.pointerId); } catch (err) { /* pas critique */ }
+      }
+      const base = row.dataset.swiped === "open" ? -SWIPE_REVEAL : 0;
+      const next = Math.min(0, Math.max(-SWIPE_REVEAL, base + dx));
+      itemBtn.style.transform = `translateX(${next}px)`;
+    });
+
+    function endDrag() {
+      if (!dragging) return;
+      dragging = false;
+      itemBtn.style.transition = "";
+      if (!lockedHorizontal) return;
+      justSwiped = true; // le click qui suit ce pointerup ne doit pas ouvrir la discussion
+      const m = new DOMMatrix(getComputedStyle(itemBtn).transform);
+      if (m.m41 < -SWIPE_REVEAL / 2) {
+        if (openSwipeRow && openSwipeRow !== row) closeSwipeRow(openSwipeRow);
+        itemBtn.style.transform = `translateX(-${SWIPE_REVEAL}px)`;
+        row.dataset.swiped = "open";
+        openSwipeRow = row;
+      } else {
+        closeSwipeRow(row);
+      }
+    }
+    itemBtn.addEventListener("pointerup", endDrag);
+    itemBtn.addEventListener("pointercancel", endDrag);
+  }
+
+  // Toucher n'importe où ailleurs referme la ligne ouverte — évite de
+  // laisser le bouton supprimer exposé après avoir changé d'avis.
+  document.addEventListener("pointerdown", (e) => {
+    if (openSwipeRow && !openSwipeRow.contains(e.target)) closeSwipeRow(openSwipeRow);
+  });
+
+  function deleteContact(id) {
+    const c = state.contacts.find((x) => x.id === id);
+    state.contacts = state.contacts.filter((x) => x.id !== id);
+    saveState();
+    stopContactPreviews();
+    subscribeContactPreviews(); // réabonne sur la liste réduite et réaffiche
+    if (c) showToast(`Conversation avec ${c.code} supprimée (juste chez toi)`);
   }
 
   /* ---------------------------------------------------------------
@@ -1194,9 +1307,14 @@
    * Historique des versions
    * ------------------------------------------------------------- */
   const CHANGELOG = [
+    { version: "v12", date: "17 août 2026", changes: [
+      "Balayer une conversation vers la gauche pour la supprimer (💀) — juste chez toi, l'historique reste intact pour l'autre personne",
+      "Balayer depuis le bord gauche de l'écran pour revenir en arrière, comme le geste natif iOS, en plus du bouton ←",
+    ]},
     { version: "v11", date: "17 août 2026", changes: [
       "Notifications réparées sur iPhone : passaient par un appel que iOS ignore silencieusement, corrigé via un service worker",
       "Compteurs du profil public (envoyé/reçu/en stock) plus fiables : un raté réseau ne les fait plus rester bloqués pour toujours, réessai automatique jusqu'à confirmation",
+      "Heure affichée dans le chat corrigée (était en retard d'environ 1 seconde sur l'heure réelle d'envoi)",
     ]},
     { version: "v10", date: "13 août 2026", changes: [
       "Notifications (mouton reçu, invitation de groupe, sondage lancé) tant que l'appli est ouverte quelque part — vraie notif app fermée demanderait un compte Firebase payant, pas activé",
@@ -1445,6 +1563,39 @@
   }
   tickClock();
   setInterval(tickClock, 1000);
+
+  /* ---------------------------------------------------------------
+   * Retour par balayage depuis le bord gauche — en plus du bouton ←,
+   * geste natif façon iOS sur les 3 écrans qui ont un retour possible.
+   * ------------------------------------------------------------- */
+  const BACK_BUTTON_BY_SCREEN = {
+    chat: "back-to-contacts",
+    group: "back-to-contacts-from-group",
+    profile: "back-to-contacts-from-profile",
+  };
+  const SWIPE_BACK_EDGE_ZONE = 24; // px depuis le bord où le geste doit démarrer
+  const SWIPE_BACK_THRESHOLD = 80; // px glissés pour valider le retour
+  let swipeBackStartX = null;
+  let swipeBackScreen = null;
+
+  document.addEventListener("touchstart", (e) => {
+    const t = e.touches[0];
+    if (!t || t.clientX > SWIPE_BACK_EDGE_ZONE) { swipeBackStartX = null; return; }
+    const current = Object.keys(BACK_BUTTON_BY_SCREEN).find((name) => !screens[name].classList.contains("screen-hidden"));
+    if (!current) { swipeBackStartX = null; return; }
+    swipeBackStartX = t.clientX;
+    swipeBackScreen = current;
+  }, { passive: true });
+
+  document.addEventListener("touchend", (e) => {
+    if (swipeBackStartX == null) return;
+    const t = e.changedTouches[0];
+    const dx = t ? t.clientX - swipeBackStartX : 0;
+    const screenAtEnd = swipeBackScreen;
+    swipeBackStartX = null;
+    swipeBackScreen = null;
+    if (dx > SWIPE_BACK_THRESHOLD) document.getElementById(BACK_BUTTON_BY_SCREEN[screenAtEnd]).click();
+  }, { passive: true });
 
   // Réessai des compteurs stats non confirmés (voir syncStatsDelta) : au
   // retour du réseau, et en filet de sécurité toutes les 15s tant qu'il en
