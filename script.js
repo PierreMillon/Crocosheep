@@ -1347,10 +1347,15 @@
       ? "🟢 Synchro activée entre appareils"
       : "⚪ Mode démo local — pas encore de synchro entre appareils";
 
+    // Mêmes trois chiffres (envoyé/reçu/en stock) que sur le profil public
+    // d'un contact — Pierre voulait la même vitrine sur son propre profil,
+    // pas juste le nombre envoyé.
     const grid = document.getElementById("badge-grid");
     grid.innerHTML = "";
     TIER_ORDER.forEach((type) => {
-      const count = state.sentTotals[type];
+      const sent = state.sentTotals[type] || 0;
+      const received = state.receivedTotals[type] || 0;
+      const owned = type === "mouton" ? "∞" : (state.stock[type] || 0);
       const locked = type !== "mouton" && !state.unlocked[type];
       const card = document.createElement("div");
       card.className = `badge-card ${locked ? "locked" : ""}`;
@@ -1358,7 +1363,11 @@
         ${locked ? `<span class="badge-lock">🔒</span>` : ""}
         <span class="badge-icon">${iconMarkup(type)}</span>
         <p class="badge-name">${ANIMALS[type].label}</p>
-        <p class="badge-count">${count} envoyé${count > 1 ? "s" : ""}</p>`;
+        <div class="pp-stats">
+          <span><b>${sent}</b>envoyé</span>
+          <span><b>${received}</b>reçu</span>
+          <span><b>${owned}</b>en stock</span>
+        </div>`;
       grid.appendChild(card);
     });
 
@@ -1400,6 +1409,9 @@
    * Historique des versions
    * ------------------------------------------------------------- */
   const CHANGELOG = [
+    { version: "v18", date: "18 août 2026", changes: [
+      "Ton propre profil affiche maintenant envoyé/reçu/en stock pour chaque animal, comme quand tu regardes le profil d'un contact",
+    ]},
     { version: "v17", date: "18 août 2026", changes: [
       "Correction interne sur la mise à jour automatique (v16) : un deuxième rechargement d'affilée pouvait produire une adresse invalide",
     ]},
