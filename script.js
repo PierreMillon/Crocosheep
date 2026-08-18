@@ -1400,6 +1400,9 @@
    * Historique des versions
    * ------------------------------------------------------------- */
   const CHANGELOG = [
+    { version: "v15", date: "18 août 2026", changes: [
+      "Taper en dehors du profil ou du changelog les ferme maintenant, comme la croix",
+    ]},
     { version: "v14", date: "17 août 2026", changes: [
       "Pseudo local sur un contact : tape sur son code en discussion → \"Renommer ce contact\" pour lui donner un petit nom (juste pour toi, jamais envoyé nulle part, le code reste visible en dessous)",
     ]},
@@ -1651,15 +1654,26 @@
   document.getElementById("close-changelog").addEventListener("click", () => {
     changelogOverlay.classList.add("screen-hidden");
   });
+  // Taper en dehors du panneau (sur le fond assombri) doit fermer comme la
+  // croix — e.target === l'overlay lui-même exclut les clics qui viennent
+  // du panneau ou de son contenu (ils remontent avec un target différent).
+  changelogOverlay.addEventListener("click", (e) => {
+    if (e.target === changelogOverlay) changelogOverlay.classList.add("screen-hidden");
+  });
 
   document.getElementById("chat-code-btn").addEventListener("click", () => {
     const el = document.getElementById("chat-code");
     const code = el.dataset.code || el.textContent;
     if (code && code !== "—") openPublicProfile(code);
   });
-  document.getElementById("close-public-profile").addEventListener("click", () => {
-    document.getElementById("public-profile-overlay").classList.add("screen-hidden");
+  const publicProfileOverlay = document.getElementById("public-profile-overlay");
+  function closePublicProfile() {
+    publicProfileOverlay.classList.add("screen-hidden");
     if (unsubscribePublicProfile) { unsubscribePublicProfile(); unsubscribePublicProfile = null; }
+  }
+  document.getElementById("close-public-profile").addEventListener("click", closePublicProfile);
+  publicProfileOverlay.addEventListener("click", (e) => {
+    if (e.target === publicProfileOverlay) closePublicProfile();
   });
   document.getElementById("rename-contact-btn").addEventListener("click", () => {
     if (!currentPublicProfileCode) return;
