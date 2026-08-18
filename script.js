@@ -1400,6 +1400,9 @@
    * Historique des versions
    * ------------------------------------------------------------- */
   const CHANGELOG = [
+    { version: "v17", date: "18 août 2026", changes: [
+      "Correction interne sur la mise à jour automatique (v16) : un deuxième rechargement d'affilée pouvait produire une adresse invalide",
+    ]},
     { version: "v16", date: "18 août 2026", changes: [
       "Mise à jour automatique : l'appli se recharge toute seule dès qu'une nouvelle version est en ligne, plus besoin de fermer/rouvrir",
     ]},
@@ -1831,7 +1834,12 @@
       if (!res.ok) return;
       const data = await res.json();
       if (data.version && data.version !== APP_VERSION) {
-        location.href = location.pathname + location.search.replace(/[?&]_=\d+/, "") + (location.search ? "&" : "?") + "_=" + Date.now();
+        // Bug corrigé : le séparateur doit dépendre de ce qui RESTE après
+        // avoir retiré l'ancien "_=..." (pas de la query string d'origine)
+        // sinon un deuxième rechargement auto produit une URL du genre
+        // "/Crocosheep/&_=..." (sans "?"), potentiellement un 404.
+        const strippedSearch = location.search.replace(/[?&]_=\d+/, "");
+        location.href = location.pathname + strippedSearch + (strippedSearch ? "&" : "?") + "_=" + Date.now();
       }
     } catch (e) { /* pas grave — hors ligne ou fichier temporairement injoignable, on réessaiera plus tard */ }
   }
