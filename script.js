@@ -1400,6 +1400,9 @@
    * Historique des versions
    * ------------------------------------------------------------- */
   const CHANGELOG = [
+    { version: "v16", date: "18 août 2026", changes: [
+      "Mise à jour automatique : l'appli se recharge toute seule dès qu'une nouvelle version est en ligne, plus besoin de fermer/rouvrir",
+    ]},
     { version: "v15", date: "18 août 2026", changes: [
       "Taper en dehors du profil ou du changelog les ferme maintenant, comme la croix",
     ]},
@@ -1799,6 +1802,42 @@
   window.addEventListener("online", flushPendingStatsSync);
   setInterval(flushPendingStatsSync, 15000);
   flushPendingStatsSync(); // reprend une file laissée en attente par une session précédente (onglet fermé avant confirmation)
+
+  /* ---------------------------------------------------------------
+   * Mise à jour automatique — Pierre veut que les gens récupèrent la
+   * dernière version sans rien avoir à faire (pas de bouton "recharger",
+   * pas de bannière à valider). L'appli vérifie de temps en temps un
+   * petit fichier version.json (jamais mis en cache, voir cache: "no-
+   * store") ; s'il annonce un numéro différent du sien, elle se recharge
+   * elle-même — vers une URL avec un paramètre différent à chaque fois,
+   * pour être sûre d'obtenir index.html/script.js/style.css réellement
+   * frais et pas une copie que le navigateur aurait gardée en cache.
+   *
+   * Revers de la médaille, assumé : le rechargement peut tomber à un
+   * mauvais moment (en plein milieu d'un geste, par exemple) — rien n'est
+   * perdu (l'état est sauvegardé en continu dans localStorage), mais
+   * l'écran saute sans prévenir. C'est le compromis explicitement demandé
+   * (zéro action requise) plutôt qu'une bannière "nouvelle version
+   * disponible" à cliquer.
+   *
+   * IMPORTANT pour les prochains déploiements : version.json doit être
+   * mis à jour EN MÊME TEMPS que APP_VERSION (CHANGELOG[0].version) —
+   * sinon toutes les sessions ouvertes se rechargent en boucle (ou,
+   * pire, jamais) tant que les deux ne sont pas synchronisés.
+   * ------------------------------------------------------------- */
+  async function checkForUpdate() {
+    try {
+      const res = await fetch(`version.json?t=${Date.now()}`, { cache: "no-store" });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.version && data.version !== APP_VERSION) {
+        location.href = location.pathname + location.search.replace(/[?&]_=\d+/, "") + (location.search ? "&" : "?") + "_=" + Date.now();
+      }
+    } catch (e) { /* pas grave — hors ligne ou fichier temporairement injoignable, on réessaiera plus tard */ }
+  }
+  setTimeout(checkForUpdate, 4000); // laisse l'appli finir de démarrer avant le tout premier check
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) checkForUpdate(); });
+  setInterval(checkForUpdate, 5 * 60 * 1000); // toutes les 5 min tant que l'appli reste ouverte quelque part
 
   handleIncomingLink();
   subscribeContactPreviews();
