@@ -16,4 +16,4 @@ Format : `[ ]` à faire · `[~]` en cours · `[?]` en attente d'une décision de
 
 ---
 
-*Dernière mise à jour : session du 17 août 2026.*
+*Dernière mise à jour : session du 20 août 2026.*
