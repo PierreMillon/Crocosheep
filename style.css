@@ -15,6 +15,14 @@
   --danger: #c1573f;
   --radius: 18px;
   --max-w: 480px;
+  /* Police d'affichage pour le logo/titres — arrondie et un peu joueuse,
+     assortie au ton de l'appli, plutôt que la police système partout.
+     Repli propre sur -apple-system si Google Fonts ne charge pas. */
+  --font-display: "Fredoka", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  /* Ombre douce et chaude (teintée d'encre, pas de noir pur) pour donner
+     un peu de profondeur aux cartes — un aplat sans aucune ombre se lit
+     comme une maquette pas finie. */
+  --shadow-card: 0 2px 6px rgba(43, 36, 32, 0.10), 0 1px 2px rgba(43, 36, 32, 0.06);
   color-scheme: light;
 }
 
@@ -104,13 +112,20 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
+  font-family: var(--font-display);
   font-size: 22px;
-  font-weight: 800;
-  letter-spacing: -0.02em;
+  font-weight: 700;
+  letter-spacing: -0.01em;
   margin: 0;
 }
 
 .app-title-small { font-size: 18px; }
+
+/* Wordmark à deux tons : "Croco" reprend le vert du crocodile, "sheep"
+   reste dans l'encre habituelle — sépare visuellement les deux moitiés
+   du nom plutôt qu'un bloc de texte uniforme. */
+.wordmark-croco { color: var(--crocodile); }
+.wordmark-sheep { color: var(--ink); }
 
 .icon-btn {
   width: 40px;
@@ -177,6 +192,7 @@ body {
   text-align: left;
   font: inherit;
   color: inherit;
+  box-shadow: var(--shadow-card);
 }
 
 .contact-item:active { transform: scale(0.98); }
@@ -188,6 +204,10 @@ body {
   position: relative;
   border-radius: var(--radius);
   overflow: hidden;
+  /* .contact-item porte aussi ombre var(--shadow-card), mais elle est
+     rognée par cet overflow:hidden (nécessaire pour le balayage) — on la
+     reporte donc ici, sur le conteneur, où elle n'est pas rognée. */
+  box-shadow: var(--shadow-card);
 }
 .contact-row .contact-item {
   position: relative;
@@ -372,6 +392,21 @@ body {
 .bubble-line.out { align-self: flex-end; align-items: flex-end; }
 .bubble-line.in { align-self: flex-start; align-items: flex-start; }
 
+/* Animation d'entrée ciblée — appliquée en JS uniquement à l'élément qui
+   vient réellement d'apparaître (voir renderChatBubbles()/renderDock()
+   dans script.js), jamais à tout l'existant : c'est précisément ce qui
+   avait causé le bug retiré plus tôt ("tout saute à chaque envoi"). */
+@keyframes popIn {
+  from { opacity: 0; transform: scale(0.9) translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+.bubble-pop, .band-pop {
+  animation: popIn 240ms cubic-bezier(0.34, 1.4, 0.64, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .bubble-pop, .band-pop { animation: none; }
+}
+
 .bubble-icon {
   width: 56px;
   height: 56px;
@@ -434,6 +469,12 @@ body {
   flex-direction: column;
   width: 100%;
   min-height: 190px;
+  /* Coins arrondis en haut seulement (panneau ancré en bas d'écran) +
+     ombre portée vers le haut, pour que le dock d'envoi se détache
+     visuellement du reste plutôt que de fondre à plat dans le fond. */
+  border-radius: var(--radius) var(--radius) 0 0;
+  overflow: hidden;
+  box-shadow: 0 -4px 14px rgba(43, 36, 32, 0.14);
 }
 
 .send-band {
@@ -663,6 +704,7 @@ body {
   text-align: center;
   cursor: pointer;
   width: calc(100% - 40px);
+  box-shadow: var(--shadow-card);
 }
 
 .share-btn:active { transform: scale(0.98); }
@@ -696,6 +738,7 @@ body {
   padding: 16px 12px;
   text-align: center;
   position: relative;
+  box-shadow: var(--shadow-card);
 }
 
 .badge-card.locked { opacity: 0.5; }
@@ -794,6 +837,7 @@ body {
   border-radius: var(--radius);
   padding: 16px 12px;
   text-align: center;
+  box-shadow: var(--shadow-card);
 }
 
 .shop-icon {

@@ -949,22 +949,38 @@
     });
   }
 
+  // Anime seulement la ou les bulles qui viennent réellement d'apparaître
+  // depuis le dernier rendu de CE contact — pas tout l'historique à
+  // chaque fois. C'est précisément ce qui avait été retiré plus tôt
+  // (l'animation rejouait sur tout l'existant à chaque envoi/réception,
+  // faute de ce genre de suivi) ; corrigé ici en gardant en mémoire
+  // combien de bulles étaient déjà là au dernier rendu de ce contact.
+  let lastBubbleContactId = null;
+  let lastBubbleCount = 0;
   function renderChatBubbles() {
     const c = state.contacts.find((x) => x.id === activeContactId);
     const wrap = document.getElementById("chat-bubbles");
     wrap.innerHTML = "";
     if (!c.history.length) {
       wrap.innerHTML = `<p class="chat-empty">Aucun animal échangé pour l'instant. Envoie le premier mouton 🐑</p>`;
+      lastBubbleContactId = activeContactId;
+      lastBubbleCount = 0;
       return;
     }
-    c.history.forEach((m) => {
+    // À l'ouverture d'un contact, previousCount = tout l'historique : rien
+    // ne doit sembler "nouveau" juste parce qu'on regarde la discussion.
+    const previousCount = lastBubbleContactId === activeContactId ? lastBubbleCount : c.history.length;
+    c.history.forEach((m, i) => {
       const line = document.createElement("div");
-      line.className = `bubble-line ${m.dir === "out" ? "out" : "in"}`;
+      const isNew = i >= previousCount;
+      line.className = `bubble-line ${m.dir === "out" ? "out" : "in"}${isNew ? " bubble-pop" : ""}`;
       line.innerHTML = `
         <span class="bubble-icon">${iconMarkup(m.animal)}</span>
         <span class="bubble-time">${exactTime(m.ts)}</span>`;
       wrap.appendChild(line);
     });
+    lastBubbleContactId = activeContactId;
+    lastBubbleCount = c.history.length;
     scrollChatToBottom();
   }
 
@@ -984,6 +1000,10 @@
   // animal débloqué, mouton toujours en haut — plutôt que d'ajouter des
   // boutons à côté. Les animaux pas encore débloqués n'apparaissent nulle
   // part ici (pas de cadenas, pas de placeholder).
+  // Même principe que pour les bulles : seule une bande qui vient de
+  // faire son apparition (pas déjà présente au rendu précédent) reçoit
+  // l'animation d'entrée — celles déjà là ne rejouent rien à chaque envoi.
+  let lastActiveDockTypes = [];
   function renderDock() {
     const stack = document.getElementById("send-stack");
     stack.innerHTML = "";
@@ -993,8 +1013,9 @@
     // il revient tout seul dès qu'un nouveau stock est regagné.
     const active = TIER_ORDER.filter((t) => t === "mouton" || (state.unlocked[t] && state.stock[t] > 0));
     active.forEach((type) => {
+      const isNew = !lastActiveDockTypes.includes(type);
       const band = document.createElement("button");
-      band.className = "send-band";
+      band.className = `send-band${isNew ? " band-pop" : ""}`;
       band.setAttribute("aria-label", `Envoyer un ${ANIMALS[type].label.toLowerCase()}`);
       band.style.background = type === "mouton" ? "var(--sheep-band-bg)" : `${ANIMALS[type].color}55`;
       band.innerHTML = `
@@ -1003,6 +1024,7 @@
       band.addEventListener("click", () => sendAnimal(type));
       stack.appendChild(band);
     });
+    lastActiveDockTypes = active;
   }
 
   /* ---------------------------------------------------------------
@@ -1409,6 +1431,12 @@
    * Historique des versions
    * ------------------------------------------------------------- */
   const CHANGELOG = [
+    { version: "v19", date: "20 août 2026", changes: [
+      "Passe pro sur l'identité visuelle : vrai logo d'installation (icône Android/Chrome, plus juste Apple), petit défaut nettoyé sur l'icône mouton",
+      "Nom \"Crocosheep\" dans une police dédiée, en deux tons (Croco en vert, sheep en encre)",
+      "Un peu de profondeur sur les cartes et le bandeau d'envoi (ombres douces) au lieu d'aplats plats",
+      "Animations d'apparition sur les nouveaux messages et les nouveaux animaux débloqués — cette fois ciblées sur l'élément qui vient d'apparaître, pas tout l'écran (ce qui avait causé le bug retiré en v6/v7)",
+    ]},
     { version: "v18", date: "18 août 2026", changes: [
       "Ton propre profil affiche maintenant envoyé/reçu/en stock pour chaque animal, comme quand tu regardes le profil d'un contact",
     ]},

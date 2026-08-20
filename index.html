@@ -12,7 +12,11 @@
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="favicon-16.png">
-<link rel="stylesheet" href="style.css?v=15">
+<link rel="manifest" href="manifest.json">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css?v=16">
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
@@ -24,7 +28,7 @@
   <section id="screen-contacts" class="screen" data-screen="contacts">
     <header class="app-header">
       <button id="show-changelog" class="version-badge" aria-label="Voir les nouveautés de cette version">v1</button>
-      <h1 class="app-title">Crocosheep</h1>
+      <h1 class="app-title app-wordmark"><span class="wordmark-croco">Croco</span><span class="wordmark-sheep">sheep</span></h1>
       <button id="open-profile" class="icon-btn icon-btn-mouton" aria-label="Voir mon profil"></button>
     </header>
 
@@ -124,6 +128,6 @@
        cache alors que index.html, lui, s'est mis à jour — mélange qui
        peut casser l'appli (ex. HTML récent + JS obsolète qui ne se
        correspondent plus). -->
-  <script src="script.js?v=22"></script>
+  <script src="script.js?v=23"></script>
 </body>
 </html>

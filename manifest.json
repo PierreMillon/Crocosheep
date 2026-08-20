@@ -1,0 +1,16 @@
+{
+  "name": "Crocosheep",
+  "short_name": "Crocosheep",
+  "description": "Envoie des animaux, pas des mots.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#ff8a3d",
+  "theme_color": "#ff8a3d",
+  "orientation": "portrait",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
