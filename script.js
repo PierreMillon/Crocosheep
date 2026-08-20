@@ -1900,7 +1900,12 @@
   }
   setTimeout(checkForUpdate, 4000); // laisse l'appli finir de démarrer avant le tout premier check
   document.addEventListener("visibilitychange", () => { if (!document.hidden) checkForUpdate(); });
-  setInterval(checkForUpdate, 5 * 60 * 1000); // toutes les 5 min tant que l'appli reste ouverte quelque part
+  // Filet de sécurité pour le cas rare d'un onglet resté au premier plan
+  // sans jamais repasser en arrière-plan (le vrai déclencheur du
+  // quotidien, c'est visibilitychange ci-dessus) — même 72h sans jamais
+  // changer d'appli est déjà rare en usage réel (Pierre), pas la peine
+  // de vérifier toutes les 5 min.
+  setInterval(checkForUpdate, 72 * 60 * 60 * 1000);
 
   handleIncomingLink();
   subscribeContactPreviews();
