@@ -377,22 +377,11 @@
     return { id: "bot", code: "🤖 Bot", color: "#4f7a58", bot: true, history: [] };
   }
 
+  // Plus de faux contacts de démo (R-482/K-071/T-955) — un vrai nouvel
+  // utilisateur ne doit jamais tomber sur des conversations fantômes.
+  // Seul le bot (clairement identifié comme tel) reste pré-présent.
   function seedContacts() {
-    return [
-      botContact(),
-      {
-        id: "c1", code: "R-482", color: "#5c8a53",
-        history: [
-          { dir: "in", animal: "mouton", ts: Date.now() - 1000 * 60 * 60 * 20 },
-          { dir: "in", animal: "mouton", ts: Date.now() - 1000 * 60 * 60 * 4 },
-        ],
-      },
-      { id: "c2", code: "K-071", color: "#b98fd6", history: [] },
-      {
-        id: "c3", code: "T-955", color: "#d9a441",
-        history: [{ dir: "in", animal: "crocodile", ts: Date.now() - 1000 * 60 * 90 }],
-      },
-    ];
+    return [botContact()];
   }
 
   const UNLOCKABLE_TIERS = TIER_ORDER.slice(1); // tout sauf mouton, gratuit dès le départ
@@ -450,6 +439,13 @@
     if (!Array.isArray(s.pendingStatsSync)) s.pendingStatsSync = []; // comptes déjà en test avant l'ajout de la file de réessai
     if (!s.recoveryKey) s.recoveryKey = randomRecoveryKey(); // comptes déjà en test avant l'ajout de cette clé
     if (!s.contacts.some((c) => c.id === "bot")) s.contacts.unshift(botContact()); // comptes déjà en test avant l'ajout du bot
+    // Retrait rétroactif des faux contacts de démo (id "c1"/"c2"/"c3",
+    // seedés par défaut jusqu'ici) — pour tout le monde, y compris les
+    // appareils déjà en cours d'utilisation, pas juste les nouveaux.
+    // Ces id ne sont générés QUE par l'ancien seedContacts(), jamais par
+    // addContactByCode() (qui prend le code lui-même comme id) : aucun
+    // risque de supprimer un vrai contact au passage.
+    s.contacts = s.contacts.filter((c) => !["c1", "c2", "c3"].includes(c.id));
     return s;
   }
 
@@ -639,6 +635,20 @@
 
       wireSwipeRow(list, btn, () => openChat(c.id), () => deleteContact(c.id), `Supprimer la conversation avec ${c.code}`);
     });
+
+    // Premier lancement (aucun vrai contact, aucun groupe, aucune
+    // invitation) : un vrai écran de bienvenue plutôt qu'une liste
+    // silencieuse à côté de deux boutons — traité comme un vrai moment
+    // d'accueil, pas un cul-de-sac (recherche UX : les empty states de
+    // premier lancement doivent guider vers l'action suivante).
+    if (!state.contacts.some((c) => !c.bot) && !myGroups.length && !myInvites.length) {
+      const hint = document.createElement("div");
+      hint.className = "empty-contacts-hint";
+      hint.innerHTML = `
+        <p class="empty-contacts-title">Bienvenue sur Crocosheep 🐑</p>
+        <p class="empty-contacts-body">Ajoute ton premier contact avec son code, ou partage ton lien, pour commencer à échanger des animaux.</p>`;
+      list.appendChild(hint);
+    }
 
     const addContactBtn = document.createElement("button");
     addContactBtn.className = "create-group-btn";
@@ -1431,6 +1441,11 @@
    * Historique des versions
    * ------------------------------------------------------------- */
   const CHANGELOG = [
+    { version: "v20", date: "20 août 2026", changes: [
+      "Plus de faux contacts de démo (R-482/K-071/T-955) — un nouvel arrivant ne voit plus que le bot, pas de fausses conversations",
+      "Vrai écran de bienvenue au premier lancement, avec quoi faire ensuite",
+      "Premier affichage instantané (logo) au lieu d'un écran vide le temps que l'appli démarre",
+    ]},
     { version: "v19", date: "20 août 2026", changes: [
       "Passe pro sur l'identité visuelle : vrai logo d'installation (icône Android/Chrome, plus juste Apple), petit défaut nettoyé sur l'icône mouton",
       "Nom \"Crocosheep\" dans une police dédiée, en deux tons (Croco en vert, sheep en encre)",
@@ -1892,4 +1907,13 @@
   subscribeOwnProfile();
   publishOwnTimezone();
   showScreen("contacts");
+
+  // Le tout premier rendu est prêt : on peut retirer le splash figé de
+  // index.html (fondu, puis suppression du nœud pour ne rien laisser
+  // traîner dans le DOM).
+  const bootSplash = document.getElementById("boot-splash");
+  if (bootSplash) {
+    bootSplash.classList.add("boot-splash-hidden");
+    setTimeout(() => bootSplash.remove(), 250);
+  }
 })();

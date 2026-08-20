@@ -43,6 +43,31 @@ button:focus-visible {
   outline-offset: 2px;
 }
 
+/* Premier affichage instantané — voir le commentaire dans index.html.
+   Volontairement minimal (juste le fond de marque + l'icône, pas
+   d'animation compliquée) : la recherche est claire là-dessus, un
+   splash doit rester très court et simple, pas un spectacle. */
+#boot-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  background: var(--bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 200ms ease;
+}
+#boot-splash img {
+  width: 96px;
+  height: 96px;
+  border-radius: 22px;
+  box-shadow: var(--shadow-card);
+}
+#boot-splash.boot-splash-hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
 html, body {
   margin: 0;
   padding: 0;
@@ -304,6 +329,25 @@ body {
 }
 
 .create-group-btn:active { transform: scale(0.98); }
+
+/* Écran de bienvenue au tout premier lancement (aucun contact/groupe) —
+   voir renderContacts() dans script.js. */
+.empty-contacts-hint {
+  text-align: center;
+  padding: 28px 20px 8px;
+}
+.empty-contacts-title {
+  font-family: var(--font-display);
+  font-size: 19px;
+  font-weight: 700;
+  margin: 0 0 8px;
+}
+.empty-contacts-body {
+  color: var(--muted);
+  font-size: 13.5px;
+  line-height: 1.5;
+  margin: 0;
+}
 
 .group-row .contact-code { display: flex; align-items: center; gap: 6px; }
 

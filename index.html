@@ -16,13 +16,19 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=16">
+<link rel="stylesheet" href="style.css?v=17">
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-check-compat.js"></script>
 </head>
 <body>
+
+  <!-- Premier affichage instantané (pur HTML/CSS, avant même que script.js
+       s'exécute) : le fond de marque + l'icône, plutôt qu'un écran vide.
+       Masqué par script.js dès que le tout premier rendu est prêt — en
+       pratique quasi immédiat, les fichiers étant petits et locaux. -->
+  <div id="boot-splash"><img src="apple-touch-icon.png" alt="" width="96" height="96"></div>
 
   <!-- ===== ÉCRAN CONTACTS ===== -->
   <section id="screen-contacts" class="screen" data-screen="contacts">
@@ -128,6 +134,6 @@
        cache alors que index.html, lui, s'est mis à jour — mélange qui
        peut casser l'appli (ex. HTML récent + JS obsolète qui ne se
        correspondent plus). -->
-  <script src="script.js?v=23"></script>
+  <script src="script.js?v=24"></script>
 </body>
 </html>
