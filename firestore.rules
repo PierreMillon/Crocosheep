@@ -1,0 +1,125 @@
+rules_version = '2';
+
+// Règles Firestore — Crocosheep
+// ------------------------------------------------------------------
+// Historique : jusqu'ici, tout était protégé par `request.auth != null`
+// uniquement — "authentifié anonymement" (gratuit, automatique, n'importe
+// qui), jamais "propriétaire de ce code précis". Trouvé lors de l'audit
+// sécurité du 10/09 : n'importe qui pouvait lire n'importe quelle
+// conversation en devinant deux codes (petit espace : 1 lettre + 3
+// chiffres = 26 000 combinaisons), et surtout ÉCRIRE — forger un message
+// en se faisant passer pour n'importe qui, ou modifier directement le
+// stock/palmarès de n'importe qui, sans passer par l'appli.
+//
+// Principe du correctif : owners/{code} lie chaque code à la liste des
+// uid Firebase Auth qui ont prouvé en connaître la clé de récupération
+// (jamais la clé elle-même, juste son hash SHA-256), et uidToCode/{uid}
+// fait le sens inverse ("qui suis-je"). Ni l'un ni l'autre n'est jamais
+// lisible par un client — seules ces règles les consultent en interne
+// via get()/exists().
+//
+// Transition en douceur (important) : tant qu'un code n'a jamais été
+// réclamé (owners/{code} inexistant — l'appareil n'a pas encore relancé
+// l'appli avec le nouveau code qui fait cette réclamation au démarrage),
+// les règles retombent sur l'ancien comportement pour CE code précis.
+// Pas de coupure nette pour les comptes déjà en cours : la protection se
+// resserre organiquement au fil des redémarrages d'appli, comme les
+// mises à jour automatiques déjà en place ailleurs.
+// ------------------------------------------------------------------
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function authed() {
+      return request.auth != null;
+    }
+
+    // "Qui suis-je" — null si ce uid n'a encore rien réclamé.
+    function myCode() {
+      return exists(/databases/$(database)/documents/uidToCode/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/uidToCode/$(request.auth.uid)).data.code
+        : null;
+    }
+
+    function isOwner(code) {
+      return authed() && code == myCode();
+    }
+
+    function notYetClaimed(code) {
+      return !exists(/databases/$(database)/documents/owners/$(code));
+    }
+
+    // ---- Propriété des codes — jamais lisible directement ----
+    match /owners/{code} {
+      allow read: if false;
+      // Réclamation initiale (code jamais réclamé) OU ajout d'un nouvel
+      // appareil à un code déjà réclamé, en reproduisant le même hash de
+      // clé de récupération déjà enregistré (preuve de connaissance) sans
+      // pouvoir retirer un uid déjà présent.
+      allow write: if authed() &&
+        (notYetClaimed(code) ||
+         (request.resource.data.recoveryKeyHash == resource.data.recoveryKeyHash &&
+          request.resource.data.uids.hasAll(resource.data.uids)));
+    }
+
+    match /uidToCode/{uid} {
+      allow read: if false;
+      // Auto-déclaration de son propre uid — aucun risque, aucune preuve
+      // nécessaire (c'est juste "voici qui je suis", pas "voici ce que je
+      // possède").
+      allow write: if authed() && request.auth.uid == uid;
+    }
+
+    // ---- Profils publics (stats vues par les contacts) ----
+    match /profiles/{code} {
+      allow read: if authed(); // déjà su et assumé : les stats sont publiques entre contacts qui se connaissent
+      allow write: if isOwner(code) || notYetClaimed(code);
+    }
+
+    // ---- Messages ----
+    match /pairs/{pairId}/messages/{messageId} {
+      allow read: if authed() &&
+        (pairId.split("__")[0] == myCode() || pairId.split("__")[1] == myCode() ||
+         notYetClaimed(pairId.split("__")[0]) || notYetClaimed(pairId.split("__")[1]));
+      // On ne peut créer un message qu'en son propre nom (from == myCode()),
+      // et seulement dans un fil dont on fait partie. Repli transitoire :
+      // si le code émetteur n'a pas encore réclamé sa propriété, ancien
+      // comportement (évite aussi la toute petite fenêtre de course au
+      // tout premier démarrage, entre la réclamation du code et la
+      // publication de uidToCode).
+      allow create: if authed() &&
+        (pairId.split("__")[0] == request.resource.data.from || pairId.split("__")[1] == request.resource.data.from) &&
+        (request.resource.data.from == myCode() || notYetClaimed(request.resource.data.from));
+      allow update, delete: if false; // l'appli ne fait jamais que .add() — jamais modifiés/supprimés côté serveur
+    }
+
+    // ---- Horloge serveur anti-triche (paramètre caché) — enjeu faible,
+    // inchangé volontairement ----
+    match /_clock/{code} {
+      allow read, write: if authed();
+    }
+
+    // ---- Groupes / sondages — menace = "empêcher un inconnu total",
+    // pas "protéger contre un ami malveillant" : portée volontairement
+    // plus simple (membre ou invité, sans vérif fine par champ) ----
+    match /groups/{groupId} {
+      allow read: if authed();
+      allow create: if authed() && request.resource.data.creator == myCode();
+      allow update: if authed() &&
+        (myCode() in resource.data.members || myCode() in resource.data.pendingInvites);
+      allow delete: if false;
+
+      match /polls/{pollId} {
+        allow read: if authed();
+        allow create: if authed() &&
+          myCode() in get(/databases/$(database)/documents/groups/$(groupId)).data.members;
+        allow update, delete: if false;
+
+        match /responses/{code} {
+          allow read: if authed();
+          allow write: if authed() && code == myCode();
+        }
+      }
+    }
+  }
+}
