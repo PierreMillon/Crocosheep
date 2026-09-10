@@ -4,6 +4,33 @@
   const STORAGE_KEY = "crocosheep_state_v1";
 
   /* ---------------------------------------------------------------
+   * Échappement HTML — audit de sécurité (Pierre) : plusieurs endroits
+   * inséraient du texte venu de l'extérieur (code de contact, label de
+   * groupe, membres, réponses de sondage) directement en innerHTML sans
+   * y toucher. Comme rien côté Firestore ne garantit qu'un code/label
+   * est "propre" (les règles n'autorisent que "authentifié", pas
+   * "propriétaire" — voir BACKLOG.md), n'importe qui pouvait y glisser
+   * du HTML/JS qui s'exécuterait chez qui l'affiche ensuite. Toute
+   * chaîne d'origine externe doit passer par escapeHtml() avant
+   * d'atterrir dans un template innerHTML.
+   * ------------------------------------------------------------- */
+  function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, (c) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+    }[c]));
+  }
+
+  // Format attendu d'un code ("R-482") : une lettre, un tiret, trois
+  // chiffres. Sert de garde-fou à l'entrée (lien de partage, saisie
+  // manuelle) — un code qui ne matche pas est refusé plutôt que stocké
+  // tel quel, en plus de l'échappement à l'affichage (défense en
+  // profondeur : les deux se complètent, aucun ne remplace l'autre).
+  const CODE_PATTERN = /^[A-Z]-\d{3}$/;
+  function looksLikeValidCode(code) {
+    return typeof code === "string" && CODE_PATTERN.test(code);
+  }
+
+  /* ---------------------------------------------------------------
    * Icônes
    * -----------------------------------------------------------------
    * Le mouton est le seul animal à avoir une silhouette SVG dédiée
@@ -53,8 +80,14 @@
   const TIER_ORDER = ["mouton", "crocodile", "lion", "licorne", "rhino", "dragon", "panda", "trex"];
   const CUSTOM_SVG = { mouton: SHEEP_SVG, crocodile: CROCODILE_IMG };
 
+  // "type" peut venir d'un message Firestore écrit par n'importe qui
+  // (les règles n'imposent aucun format — voir l'audit sécurité) : un
+  // ANIMALS[type] qui n'existe pas plantait ce rendu (et donc toute la
+  // discussion) au lieu de simplement ignorer l'animal inconnu.
   function iconMarkup(type) {
-    return CUSTOM_SVG[type] ? CUSTOM_SVG[type] : `<span class="emoji">${ANIMALS[type].emoji}</span>`;
+    if (CUSTOM_SVG[type]) return CUSTOM_SVG[type];
+    if (ANIMALS[type]) return `<span class="emoji">${ANIMALS[type].emoji}</span>`;
+    return `<span class="emoji">❓</span>`;
   }
 
   /* ---------------------------------------------------------------
@@ -261,6 +294,7 @@
   // neuf sur une identité déjà active peut recompter un historique déjà
   // ancien une fois, faute d'un vrai curseur côté serveur.
   function trackReceived(animal) {
+    if (!TIER_ORDER.includes(animal)) return; // message forgé/mal formé (voir l'audit sécurité) — on l'ignore, pas de clé polluée
     state.receivedTotals[animal] = (state.receivedTotals[animal] || 0) + 1;
     saveState();
     syncStatsDelta(null, null, { [animal]: 1 });
@@ -477,7 +511,12 @@
    * Ajout d'un contact par lien partagé (?add=CODE)
    * ------------------------------------------------------------- */
   function addContactByCode(code) {
-    if (!code || code === state.pseudo) return null;
+    // Garde-fou : un code qui ne respecte pas le format attendu est
+    // refusé plutôt que stocké tel quel — un lien de partage trafiqué
+    // (?add=...) ne peut donc pas glisser n'importe quelle chaîne dans
+    // la liste de contacts (voir escapeHtml() plus haut pour le second
+    // filet, à l'affichage).
+    if (!looksLikeValidCode(code) || code === state.pseudo) return null;
     let c = state.contacts.find((x) => x.code === code);
     if (c) return c;
     c = { id: code, code, color: colorForCode(code), history: [] };
@@ -594,7 +633,7 @@
       const row = document.createElement("div");
       row.className = "contact-item group-row";
       row.innerHTML = `
-        <p class="contact-code"><span class="invite-tag">Invitation</span> ${g.label || g.id}</p>
+        <p class="contact-code"><span class="invite-tag">Invitation</span> ${escapeHtml(g.label || g.id)}</p>
         <span class="invite-actions">
           <button class="invite-btn invite-accept" data-action="accept">Accepter</button>
           <button class="invite-btn invite-decline" data-action="decline">Ignorer</button>
@@ -609,7 +648,7 @@
       btn.className = "contact-item group-row";
       const memberCount = (g.members || []).length;
       btn.innerHTML = `
-        <p class="contact-code"><span class="group-tag">👥 Groupe</span> ${g.label || g.id}</p>
+        <p class="contact-code"><span class="group-tag">👥 Groupe</span> ${escapeHtml(g.label || g.id)}</p>
         <span class="contact-preview"><span>${memberCount} membre${memberCount > 1 ? "s" : ""}</span></span>`;
       wireSwipeRow(list, btn, () => openGroup(g.id), () => leaveGroup(g.id), `Quitter le groupe ${g.label || g.id}`);
     });
@@ -619,7 +658,7 @@
       const btn = document.createElement("button");
       btn.className = "contact-item";
       btn.innerHTML = `
-        <p class="contact-code">${c.nickname || c.code}${c.nickname ? `<span class="contact-code-sub"> · ${c.code}</span>` : ""}</p>
+        <p class="contact-code">${escapeHtml(c.nickname || c.code)}${c.nickname ? `<span class="contact-code-sub"> · ${escapeHtml(c.code)}</span>` : ""}</p>
         <span class="contact-preview">
           ${last
             ? `<span class="contact-preview-icon">${iconMarkup(last.animal)}</span><span>${exactTime(last.ts)}</span>`
@@ -660,6 +699,7 @@
       const added = addContactByCode(code);
       if (added) { showToast(`${code} ajouté à tes contacts`); renderContacts(); }
       else if (code === state.pseudo) showToast("C'est ton propre code !");
+      else showToast("Code invalide — format attendu : une lettre puis 3 chiffres (ex. W-867)");
     });
     list.appendChild(addContactBtn);
 
@@ -882,7 +922,7 @@
       if (unsubscribePublicProfile) unsubscribePublicProfile();
       unsubscribePublicProfile = profileRef(code).onSnapshot((snap) => {
         if (!snap.exists) {
-          grid.innerHTML = `<p class="group-waiting">Rien à montrer pour l'instant — ${code} n'a encore rien envoyé ni reçu.</p>`;
+          grid.innerHTML = `<p class="group-waiting">Rien à montrer pour l'instant — ${escapeHtml(code)} n'a encore rien envoyé ni reçu.</p>`;
           return;
         }
         const d = snap.data();
@@ -1293,7 +1333,7 @@
     const body = document.getElementById("group-body");
 
     let html = `<p class="group-section-label">Membres</p><div class="group-members">`;
-    html += group.members.map((m) => `<span class="group-member-chip">${m}</span>`).join("");
+    html += group.members.map((m) => `<span class="group-member-chip">${escapeHtml(m)}</span>`).join("");
     html += `</div>`;
 
     if (isCreator) {
@@ -1344,10 +1384,10 @@
           <p class="poll-tally">${responded.length}/${total}</p>
           <p class="poll-tally-label">ont répondu</p>
           <p class="poll-list-title">Ont dit oui</p>
-          <div class="poll-list">${responded.map((m) => `<span class="poll-chip yes">${m}</span>`).join("") || `<span class="poll-chip pending">Personne pour l'instant</span>`}</div>
+          <div class="poll-list">${responded.map((m) => `<span class="poll-chip yes">${escapeHtml(m)}</span>`).join("") || `<span class="poll-chip pending">Personne pour l'instant</span>`}</div>
           <hr class="poll-divider">
           <p class="poll-list-title">Pas encore répondu</p>
-          <div class="poll-list">${pending.map((m) => `<span class="poll-chip pending">${m}</span>`).join("") || `<span class="poll-chip yes">Tout le monde a répondu 🎉</span>`}</div>
+          <div class="poll-list">${pending.map((m) => `<span class="poll-chip pending">${escapeHtml(m)}</span>`).join("") || `<span class="poll-chip yes">Tout le monde a répondu 🎉</span>`}</div>
         `;
       }, (e) => console.error("Réponses indisponibles", e));
   }
@@ -1441,6 +1481,9 @@
    * Historique des versions
    * ------------------------------------------------------------- */
   const CHANGELOG = [
+    { version: "v21", date: "10 septembre 2026", changes: [
+      "Sécurité : renforcement contre l'injection de contenu malveillant (liens de partage, groupes) et contre les messages mal formés",
+    ]},
     { version: "v20", date: "20 août 2026", changes: [
       "Plus de faux contacts de démo (R-482/K-071/T-955) — un nouvel arrivant ne voit plus que le bot, pas de fausses conversations",
       "Vrai écran de bienvenue au premier lancement, avec quoi faire ensuite",
