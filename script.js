@@ -678,6 +678,29 @@
     return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
   }
 
+  // Séparateur de date entre bulles — même principe que WhatsApp/iMessage :
+  // "Aujourd'hui"/"Hier" quand ça colle au jour courant, sinon la date
+  // complète (avec l'année seulement si ce n'est pas la même que celle
+  // en cours, pour ne pas surcharger l'affichage la plupart du temps).
+  function isSameDay(tsA, tsB) {
+    const a = new Date(tsA);
+    const b = new Date(tsB);
+    return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  }
+  function dayLabel(ts) {
+    const d = new Date(ts);
+    const today = new Date(now());
+    if (isSameDay(ts, today)) return "Aujourd'hui";
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    if (isSameDay(ts, yesterday)) return "Hier";
+    return d.toLocaleDateString("fr-FR", {
+      day: "numeric",
+      month: "long",
+      year: d.getFullYear() !== today.getFullYear() ? "numeric" : undefined,
+    });
+  }
+
   // Vue "tableau de bord" : un listener temps réel par contact (juste le
   // dernier message, limit(1)) pour que la liste se mette à jour toute
   // seule sans qu'il faille rouvrir chaque discussion. Coupé dès qu'on
@@ -1116,7 +1139,15 @@
     // À l'ouverture d'un contact, previousCount = tout l'historique : rien
     // ne doit sembler "nouveau" juste parce qu'on regarde la discussion.
     const previousCount = lastBubbleContactId === activeContactId ? lastBubbleCount : c.history.length;
+    let previousTs = null;
     c.history.forEach((m, i) => {
+      if (previousTs === null || !isSameDay(m.ts, previousTs)) {
+        const sep = document.createElement("div");
+        sep.className = "chat-date-sep";
+        sep.textContent = dayLabel(m.ts);
+        wrap.appendChild(sep);
+      }
+      previousTs = m.ts;
       const line = document.createElement("div");
       const isNew = i >= previousCount;
       line.className = `bubble-line ${m.dir === "out" ? "out" : "in"}${isNew ? " bubble-pop" : ""}`;
@@ -1577,6 +1608,9 @@
    * Historique des versions
    * ------------------------------------------------------------- */
   const CHANGELOG = [
+    { version: "v23", date: "21 septembre 2026", changes: [
+      "Une discussion affiche maintenant la date (\"Aujourd'hui\", \"Hier\", ou la date complète) dès que le jour change entre deux messages",
+    ]},
     { version: "v22", date: "10 septembre 2026", changes: [
       "Sécurité : chaque code est maintenant lié à l'appareil (ou aux appareils) qui le possède vraiment — plus personne d'autre ne peut lire tes conversations ou modifier ton profil en devinant ton code",
     ]},
