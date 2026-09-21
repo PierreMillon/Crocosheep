@@ -106,6 +106,7 @@
   );
   let db = null;
   let authReady = Promise.resolve(null);
+  let myUid = null; // uid Firebase Auth (anonyme) de cet appareil — sert à prouver la propriété d'un code, voir ensureOwnership()
 
   if (FIREBASE_READY) {
     firebase.initializeApp(window.FIREBASE_CONFIG);
@@ -121,7 +122,7 @@
     }
     db = firebase.firestore();
     authReady = firebase.auth().signInAnonymously()
-      .then(() => true)
+      .then(() => { myUid = firebase.auth().currentUser && firebase.auth().currentUser.uid; return true; })
       .catch((e) => { console.error("Auth Firebase échouée", e); return false; });
   } else {
     console.warn("Crocosheep : Firebase non configuré — mode démo local uniquement, pas de synchro entre appareils.");
@@ -144,6 +145,29 @@
   }
   function groupRef(groupId) {
     return db.collection("groups").doc(groupId);
+  }
+  // Documents de propriété — jamais lisibles côté client (voir les
+  // règles Firestore), seulement utilisés en écriture ici. "owners/{code}"
+  // lie un code aux uid Firebase Auth qui en ont légitimement prouvé la
+  // connaissance (soi-même à la création, un autre appareil ensuite via
+  // la clé de récupération) ; "uidToCode/{uid}" est le sens inverse,
+  // utilisé par les règles pour savoir "qui suis-je" sans avoir à me
+  // faire confiance sur parole. Voir ensureOwnership() plus bas.
+  function ownerRef(code) {
+    return db.collection("owners").doc(code);
+  }
+  function uidToCodeRef(uid) {
+    return db.collection("uidToCode").doc(uid);
+  }
+
+  // SHA-256 en hexadécimal via l'API Web Crypto native (dispo partout en
+  // contexte sécurisé HTTPS, pas de dépendance externe) — sert à prouver
+  // la connaissance de la clé de récupération sans jamais l'envoyer ni la
+  // stocker en clair côté serveur.
+  async function sha256Hex(text) {
+    const bytes = new TextEncoder().encode(text);
+    const digest = await crypto.subtle.digest("SHA-256", bytes);
+    return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
   }
 
   // Emballe tout code qui a besoin d'être authentifié avant de toucher
@@ -268,6 +292,71 @@
         { tzOffset: new Date().getTimezoneOffset() },
         { merge: true }
       ).catch((e) => console.warn("Publication fuseau horaire impossible", e));
+    });
+  }
+
+  /* ---------------------------------------------------------------
+   * Propriété d'un code — audit sécurité du 10/09 : les règles Firestore
+   * ne vérifiaient jusqu'ici qu'"authentifié", jamais "propriétaire de ce
+   * code précis". N'importe qui pouvait donc écrire dans le profil ou le
+   * fil de n'importe qui, ou forger un message en se faisant passer pour
+   * quelqu'un d'autre.
+   *
+   * Le principe : owners/{code} lie un code à la liste des uid Firebase
+   * Auth qui en ont prouvé la connaissance (soi-même en premier, un
+   * autre appareil ensuite via la clé de récupération) et à un hash de
+   * cette clé — jamais la clé elle-même. uidToCode/{uid} est le sens
+   * inverse ("qui suis-je"), publié sans preuve nécessaire (c'est juste
+   * une auto-déclaration de son propre uid, aucun risque). Les deux
+   * documents ne sont jamais lisibles par un client (voir les règles) :
+   * seules les règles elles-mêmes les consultent en interne.
+   *
+   * Transition en douceur : tant qu'un code n'a jamais été réclamé
+   * (owners/{code} inexistant), les règles retombent sur l'ancien
+   * comportement pour CE code précis, le temps que son appareil relance
+   * l'appli et fasse ce premier appel — pas de coupure nette pour les
+   * comptes déjà en cours.
+   * ------------------------------------------------------------- */
+  function ensureOwnership() {
+    if (!FIREBASE_READY || state.ownershipClaimed) return;
+    withAuth(() => {
+      if (!myUid) return;
+      sha256Hex(state.recoveryKey).then((hash) => {
+        return ownerRef(state.pseudo).set(
+          { uids: firebase.firestore.FieldValue.arrayUnion(myUid), recoveryKeyHash: hash },
+          { merge: true }
+        );
+      }).then(() => {
+        state.ownershipClaimed = true;
+        saveState();
+        return uidToCodeRef(myUid).set({ code: state.pseudo }, { merge: true });
+      }).catch((e) => console.warn("Réclamation de propriété du code impossible, on réessaiera plus tard", e));
+    });
+  }
+
+  // Rejoindre une identité existante depuis un nouvel appareil (bouton
+  // "Restaurer une identité") : il faut reproduire le même hash que celui
+  // déjà enregistré pour que les règles acceptent d'ajouter ce nouvel uid
+  // à la liste des propriétaires. Contrairement à ensureOwnership(), on ne
+  // sait pas d'avance si ça va marcher (mauvaise clé recopiée) — d'où le
+  // retour de succès/échec explicite, pour prévenir l'utilisateur sans
+  // pour autant annuler la restauration locale déjà faite (qui, elle,
+  // continue de fonctionner hors-ligne comme avant).
+  function joinOwnershipWithKey(code, key, onResult) {
+    if (!FIREBASE_READY) { onResult(null); return; } // mode démo local : rien à vérifier côté serveur
+    withAuth(() => {
+      if (!myUid) { onResult(null); return; }
+      sha256Hex(key).then((hash) => {
+        return ownerRef(code).set(
+          { uids: firebase.firestore.FieldValue.arrayUnion(myUid), recoveryKeyHash: hash },
+          { merge: true }
+        );
+      }).then(() => {
+        state.ownershipClaimed = true;
+        saveState();
+        return uidToCodeRef(myUid).set({ code }, { merge: true });
+      }).then(() => onResult(true))
+        .catch((e) => { console.warn("Rattachement à l'identité existante refusé", e); onResult(false); });
     });
   }
 
@@ -399,8 +488,13 @@
   // elle n'est jamais incluse dans le lien de partage.
   function randomRecoveryKey() {
     const chars = "abcdefghjkmnpqrstuvwxyz23456789"; // sans caractères ambigus (0/o, 1/l/i)
+    // crypto.getRandomValues plutôt que Math.random() — cette clé protège
+    // maintenant un vrai accès côté serveur (voir ensureOwnership()), pas
+    // juste une convention locale ; autant que le tirage soit solide.
+    const bytes = new Uint8Array(10);
+    crypto.getRandomValues(bytes);
     let key = "";
-    for (let i = 0; i < 10; i++) key += chars[Math.floor(Math.random() * chars.length)];
+    for (let i = 0; i < bytes.length; i++) key += chars[bytes[i] % chars.length];
     return key;
   }
 
@@ -450,6 +544,7 @@
       nextThreshold,
       contacts: seedContacts(),
       pendingStatsSync: [], // deltas stock/sentTotals/receivedTotals pas encore confirmés par Firestore — voir flushPendingStatsSync()
+      ownershipClaimed: false, // voir ensureOwnership() — passe à true une fois owners/{code} confirmé côté serveur
     };
   }
 
@@ -472,6 +567,7 @@
     s.receivedTotals = { ...zeroPerTier(), ...s.receivedTotals };
     if (!Array.isArray(s.pendingStatsSync)) s.pendingStatsSync = []; // comptes déjà en test avant l'ajout de la file de réessai
     if (!s.recoveryKey) s.recoveryKey = randomRecoveryKey(); // comptes déjà en test avant l'ajout de cette clé
+    if (typeof s.ownershipClaimed !== "boolean") s.ownershipClaimed = false; // comptes déjà en test avant l'audit sécurité du 10/09 — la réclamation se fera au prochain démarrage
     if (!s.contacts.some((c) => c.id === "bot")) s.contacts.unshift(botContact()); // comptes déjà en test avant l'ajout du bot
     // Retrait rétroactif des faux contacts de démo (id "c1"/"c2"/"c3",
     // seedés par défaut jusqu'ici) — pour tout le monde, y compris les
@@ -580,6 +676,29 @@
     const d = new Date(ts);
     const pad = (n) => String(n).padStart(2, "0");
     return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  }
+
+  // Séparateur de date entre bulles — même principe que WhatsApp/iMessage :
+  // "Aujourd'hui"/"Hier" quand ça colle au jour courant, sinon la date
+  // complète (avec l'année seulement si ce n'est pas la même que celle
+  // en cours, pour ne pas surcharger l'affichage la plupart du temps).
+  function isSameDay(tsA, tsB) {
+    const a = new Date(tsA);
+    const b = new Date(tsB);
+    return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  }
+  function dayLabel(ts) {
+    const d = new Date(ts);
+    const today = new Date(now());
+    if (isSameDay(ts, today)) return "Aujourd'hui";
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    if (isSameDay(ts, yesterday)) return "Hier";
+    return d.toLocaleDateString("fr-FR", {
+      day: "numeric",
+      month: "long",
+      year: d.getFullYear() !== today.getFullYear() ? "numeric" : undefined,
+    });
   }
 
   // Vue "tableau de bord" : un listener temps réel par contact (juste le
@@ -1020,7 +1139,15 @@
     // À l'ouverture d'un contact, previousCount = tout l'historique : rien
     // ne doit sembler "nouveau" juste parce qu'on regarde la discussion.
     const previousCount = lastBubbleContactId === activeContactId ? lastBubbleCount : c.history.length;
+    let previousTs = null;
     c.history.forEach((m, i) => {
+      if (previousTs === null || !isSameDay(m.ts, previousTs)) {
+        const sep = document.createElement("div");
+        sep.className = "chat-date-sep";
+        sep.textContent = dayLabel(m.ts);
+        wrap.appendChild(sep);
+      }
+      previousTs = m.ts;
       const line = document.createElement("div");
       const isNew = i >= previousCount;
       line.className = `bubble-line ${m.dir === "out" ? "out" : "in"}${isNew ? " bubble-pop" : ""}`;
@@ -1481,6 +1608,12 @@
    * Historique des versions
    * ------------------------------------------------------------- */
   const CHANGELOG = [
+    { version: "v23", date: "21 septembre 2026", changes: [
+      "Une discussion affiche maintenant la date (\"Aujourd'hui\", \"Hier\", ou la date complète) dès que le jour change entre deux messages",
+    ]},
+    { version: "v22", date: "10 septembre 2026", changes: [
+      "Sécurité : chaque code est maintenant lié à l'appareil (ou aux appareils) qui le possède vraiment — plus personne d'autre ne peut lire tes conversations ou modifier ton profil en devinant ton code",
+    ]},
     { version: "v21", date: "10 septembre 2026", changes: [
       "Sécurité : renforcement contre l'injection de contenu malveillant (liens de partage, groupes) et contre les messages mal formés",
     ]},
@@ -1697,9 +1830,20 @@
     }
     state.pseudo = code.trim().toUpperCase();
     state.recoveryKey = key.trim();
+    state.ownershipClaimed = false; // à revérifier pour CE code sur CET appareil
     saveState();
     renderProfile();
     showToast(`Identité restaurée : ${state.pseudo}`);
+    // La restauration locale marche déjà (hors-ligne y compris) ; on
+    // tente en plus de rattacher cet appareil à l'identité côté serveur,
+    // pour que la synchro fonctionne aussi. Si la clé collée ne
+    // correspond pas à celle enregistrée pour ce code, ça échoue — on
+    // prévient sans annuler ce qui vient d'être fait localement.
+    joinOwnershipWithKey(state.pseudo, state.recoveryKey, (ok) => {
+      if (ok === false) {
+        showToast("⚠️ Cette clé ne correspond pas à ce code côté serveur — la synchro avec d'autres appareils sur cette identité ne fonctionnera pas tant que ce n'est pas corrigé");
+      }
+    });
   });
 
   document.getElementById("share-link").addEventListener("click", async () => {
@@ -1954,6 +2098,7 @@
   subscribeContactPreviews();
   subscribeOwnProfile();
   publishOwnTimezone();
+  ensureOwnership();
   showScreen("contacts");
 
   // Le tout premier rendu est prêt : on peut retirer le splash figé de
